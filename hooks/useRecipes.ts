@@ -47,7 +47,8 @@ export function useRecipes() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [userRecipes, setUserRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const [userRecipesLoading, setUserRecipesLoading] = useState(true);
+  const { user, profile } = useAuth();
 
   const fetchRecipes = async () => {
     try {
@@ -137,9 +138,15 @@ export function useRecipes() {
   };
 
   const fetchUserRecipes = async () => {
-    if (!user) return;
+    if (!user) {
+      setUserRecipes([]);
+      setUserRecipesLoading(false);
+      return;
+    }
 
     try {
+      setUserRecipesLoading(true);
+      
       // Fetch user's recipes (both public and private)
       const userRecipesQuery = query(
         collection(db, 'recipes'),
@@ -153,20 +160,62 @@ export function useRecipes() {
         ...doc.data()
       })) as Recipe[];
 
-      // Add author info (current user)
-      const recipesWithAuthor = userRecipesData.map(recipe => ({
-        ...recipe,
-        author: {
-          id: user.uid,
-          name: user.displayName || 'You',
-          username: user.email?.split('@')[0] || 'you',
-          avatar_url: user.photoURL,
-        }
-      }));
+      // Add author info (current user) and check interactions
+      const recipesWithAuthorAndInteractions = await Promise.all(
+        userRecipesData.map(async (recipe) => {
+          try {
+            // Check if bookmarked
+            const bookmarkQuery = query(
+              collection(db, 'recipe_bookmarks'),
+              where('user_id', '==', user.uid),
+              where('recipe_id', '==', recipe.id)
+            );
+            const bookmarkSnapshot = await getDocs(bookmarkQuery);
+            const isBookmarked = !bookmarkSnapshot.empty;
 
-      setUserRecipes(recipesWithAuthor);
+            // Check if liked
+            const likeQuery = query(
+              collection(db, 'recipe_likes'),
+              where('user_id', '==', user.uid),
+              where('recipe_id', '==', recipe.id)
+            );
+            const likeSnapshot = await getDocs(likeQuery);
+            const isLiked = !likeSnapshot.empty;
+
+            return {
+              ...recipe,
+              author: {
+                id: user.uid,
+                name: profile?.name || user.displayName || 'You',
+                username: profile?.username || user.email?.split('@')[0] || 'you',
+                avatar_url: profile?.avatar_url || user.photoURL,
+              },
+              isBookmarked,
+              isLiked,
+            };
+          } catch (error) {
+            console.error('Error processing user recipe:', error);
+            return {
+              ...recipe,
+              author: {
+                id: user.uid,
+                name: profile?.name || user.displayName || 'You',
+                username: profile?.username || user.email?.split('@')[0] || 'you',
+                avatar_url: profile?.avatar_url || user.photoURL,
+              },
+              isBookmarked: false,
+              isLiked: false,
+            };
+          }
+        })
+      );
+
+      setUserRecipes(recipesWithAuthorAndInteractions);
     } catch (error) {
       console.error('Error fetching user recipes:', error);
+      setUserRecipes([]);
+    } finally {
+      setUserRecipesLoading(false);
     }
   };
 
@@ -242,18 +291,14 @@ export function useRecipes() {
         await deleteDoc(doc(db, 'recipe_bookmarks', bookmarkDoc.id));
       }
 
-      // Update local state
-      setRecipes(prev => prev.map(recipe => 
+      // Update local state for both recipe lists
+      const updateBookmarkState = (recipe: Recipe) => 
         recipe.id === recipeId 
           ? { ...recipe, isBookmarked: !recipe.isBookmarked }
-          : recipe
-      ));
-      
-      setUserRecipes(prev => prev.map(recipe => 
-        recipe.id === recipeId 
-          ? { ...recipe, isBookmarked: !recipe.isBookmarked }
-          : recipe
-      ));
+          : recipe;
+
+      setRecipes(prev => prev.map(updateBookmarkState));
+      setUserRecipes(prev => prev.map(updateBookmarkState));
     } catch (error) {
       console.error('Error toggling bookmark:', error);
     }
@@ -284,18 +329,14 @@ export function useRecipes() {
         await deleteDoc(doc(db, 'recipe_likes', likeDoc.id));
       }
 
-      // Update local state
-      setRecipes(prev => prev.map(recipe => 
+      // Update local state for both recipe lists
+      const updateLikeState = (recipe: Recipe) => 
         recipe.id === recipeId 
           ? { ...recipe, isLiked: !recipe.isLiked }
-          : recipe
-      ));
-      
-      setUserRecipes(prev => prev.map(recipe => 
-        recipe.id === recipeId 
-          ? { ...recipe, isLiked: !recipe.isLiked }
-          : recipe
-      ));
+          : recipe;
+
+      setRecipes(prev => prev.map(updateLikeState));
+      setUserRecipes(prev => prev.map(updateLikeState));
     } catch (error) {
       console.error('Error toggling like:', error);
     }
@@ -320,17 +361,25 @@ export function useRecipes() {
   };
 
   useEffect(() => {
-    if (user) {
-      Promise.all([fetchRecipes(), fetchUserRecipes()]);
-    } else {
-      fetchRecipes();
-    }
+    // Always fetch public recipes
+    fetchRecipes();
   }, [user]);
+
+  useEffect(() => {
+    // Fetch user recipes when user or profile changes
+    if (user) {
+      fetchUserRecipes();
+    } else {
+      setUserRecipes([]);
+      setUserRecipesLoading(false);
+    }
+  }, [user, profile]);
 
   return {
     recipes,
     userRecipes,
     loading,
+    userRecipesLoading,
     fetchRecipes,
     fetchUserRecipes,
     createRecipe,

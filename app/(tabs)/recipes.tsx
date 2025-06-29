@@ -13,7 +13,7 @@ export default function MyRecipesScreen() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
   
-  const { userRecipes, loading, fetchUserRecipes, toggleBookmark, toggleLike } = useRecipes();
+  const { userRecipes, userRecipesLoading, fetchUserRecipes, toggleBookmark, toggleLike } = useRecipes();
   const { user } = useAuth();
 
   const categories = ['All', 'Favorites', 'Recently Added', 'Most Cooked', 'Vegetarian', 'Quick Meals'];
@@ -49,7 +49,7 @@ export default function MyRecipesScreen() {
     router.push(`/recipe/${recipeId}`);
   };
 
-  if (loading) {
+  if (userRecipesLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -147,17 +147,17 @@ export default function MyRecipesScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {filteredRecipes.map((recipe) => (
-          <RecipeCard
-            key={recipe.id}
-            recipe={recipe}
-            onPress={() => handleRecipePress(recipe.id)}
-            onBookmark={() => handleBookmark(recipe.id)}
-            onLike={() => handleLike(recipe.id)}
-          />
-        ))}
-        
-        {filteredRecipes.length === 0 && (
+        {filteredRecipes.length > 0 ? (
+          filteredRecipes.map((recipe) => (
+            <RecipeCard
+              key={recipe.id}
+              recipe={recipe}
+              onPress={() => handleRecipePress(recipe.id)}
+              onBookmark={() => handleBookmark(recipe.id)}
+              onLike={() => handleLike(recipe.id)}
+            />
+          ))
+        ) : (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateTitle}>
               {userRecipes.length === 0 ? 'No recipes yet' : 'No recipes found'}
@@ -165,7 +165,7 @@ export default function MyRecipesScreen() {
             <Text style={styles.emptyStateText}>
               {userRecipes.length === 0 
                 ? 'Start adding recipes to build your collection' 
-                : 'Try adjusting your search terms'
+                : 'Try adjusting your search terms or filters'
               }
             </Text>
             {userRecipes.length === 0 && (
