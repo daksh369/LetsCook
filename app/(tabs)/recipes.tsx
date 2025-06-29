@@ -16,7 +16,7 @@ export default function MyRecipesScreen() {
   const { userRecipes, userRecipesLoading, fetchUserRecipes, toggleBookmark, toggleLike } = useRecipes();
   const { user } = useAuth();
 
-  const categories = ['All', 'Favorites', 'Recently Added', 'Most Cooked', 'Vegetarian', 'Quick Meals'];
+  const categories = ['All', 'Favorites', 'Recently Added', 'Vegetarian', 'Quick Meals'];
 
   // Debug logging
   useEffect(() => {
@@ -125,12 +125,12 @@ export default function MyRecipesScreen() {
         </View>
       </View>
 
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoriesContainer}
-      >
-        <View style={styles.categories}>
+      <View style={styles.categoriesContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categories}
+        >
           {categories.map((category) => (
             <TouchableOpacity
               key={category}
@@ -148,8 +148,8 @@ export default function MyRecipesScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       <View style={styles.resultsHeader}>
         <Text style={styles.resultsText}>
@@ -278,11 +278,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+    paddingVertical: 12,
   },
   categories: {
-    flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 12,
   },
   categoryChip: {
     backgroundColor: '#F1F5F9',
@@ -298,6 +297,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Medium',
     color: '#64748B',
+    whiteSpace: 'nowrap',
   },
   selectedCategoryText: {
     color: '#FFFFFF',

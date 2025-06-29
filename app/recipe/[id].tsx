@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image } from 'react-native';
-import { ArrowLeft, Clock, Users, Star, Bookmark, Heart, Share, ChefHat } from 'lucide-react-native';
+import { ArrowLeft, Clock, Users, Star, Bookmark, Heart, Share, ChefHat, Check, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -12,6 +12,8 @@ export default function RecipeDetailScreen() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [cookMode, setCookMode] = useState(false);
+  const [ingredientsMode, setIngredientsMode] = useState(false);
+  const [checkedIngredients, setCheckedIngredients] = useState<boolean[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const { user } = useAuth();
 
@@ -42,12 +44,32 @@ export default function RecipeDetailScreen() {
         }
         
         setRecipe(recipeData);
+        // Initialize ingredients checklist
+        setCheckedIngredients(new Array(recipeData.ingredients.length).fill(false));
       }
     } catch (error) {
       console.error('Error fetching recipe:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleIngredient = (index: number) => {
+    const newChecked = [...checkedIngredients];
+    newChecked[index] = !newChecked[index];
+    setCheckedIngredients(newChecked);
+  };
+
+  const allIngredientsChecked = checkedIngredients.every(checked => checked);
+
+  const startCooking = () => {
+    setIngredientsMode(true);
+    setCookMode(true);
+  };
+
+  const proceedToSteps = () => {
+    setIngredientsMode(false);
+    setCurrentStep(0);
   };
 
   const nextStep = () => {
@@ -60,6 +82,13 @@ export default function RecipeDetailScreen() {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
+  };
+
+  const exitCookMode = () => {
+    setCookMode(false);
+    setIngredientsMode(false);
+    setCurrentStep(0);
+    setCheckedIngredients(new Array(recipe?.ingredients.length || 0).fill(false));
   };
 
   if (loading) {
@@ -85,55 +114,152 @@ export default function RecipeDetailScreen() {
     );
   }
 
-  if (cookMode) {
+  // Ingredients Collection Mode
+  if (cookMode && ingredientsMode) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.cookModeHeader}>
-          <TouchableOpacity onPress={() => setCookMode(false)}>
+          <TouchableOpacity onPress={exitCookMode}>
             <ArrowLeft size={24} color="#1E293B" />
           </TouchableOpacity>
-          <Text style={styles.cookModeTitle}>Cook Mode</Text>
-          <Text style={styles.stepCounter}>
-            {currentStep + 1} / {recipe.instructions.length}
+          <Text style={styles.cookModeTitle}>Collect Ingredients</Text>
+          <Text style={styles.ingredientProgress}>
+            {checkedIngredients.filter(Boolean).length} / {recipe.ingredients.length}
           </Text>
         </View>
 
-        <ScrollView style={styles.cookModeContent}>
-          <View style={styles.currentStepContainer}>
-            <View style={styles.stepNumberLarge}>
-              <Text style={styles.stepNumberLargeText}>{currentStep + 1}</Text>
-            </View>
-            <Text style={styles.currentStepText}>
-              {recipe.instructions[currentStep]}
-            </Text>
+        <ScrollView style={styles.ingredientsContent}>
+          <View style={styles.ingredientsHeader}>
+            <Text style={styles.ingredientsTitle}>Gather these ingredients:</Text>
+            <Text style={styles.ingredientsSubtitle}>Check them off as you collect them</Text>
           </View>
 
-          <View style={styles.cookModeNavigation}>
-            <TouchableOpacity 
-              style={[styles.navButton, currentStep === 0 && styles.navButtonDisabled]}
-              onPress={prevStep}
-              disabled={currentStep === 0}
-            >
-              <Text style={[styles.navButtonText, currentStep === 0 && styles.navButtonTextDisabled]}>
-                Previous
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.navButton, styles.nextButton, currentStep === recipe.instructions.length - 1 && styles.navButtonDisabled]}
-              onPress={nextStep}
-              disabled={currentStep === recipe.instructions.length - 1}
-            >
-              <Text style={[styles.navButtonText, styles.nextButtonText, currentStep === recipe.instructions.length - 1 && styles.navButtonTextDisabled]}>
-                {currentStep === recipe.instructions.length - 1 ? 'Complete!' : 'Next'}
-              </Text>
-            </TouchableOpacity>
+          <View style={styles.ingredientsList}>
+            {recipe.ingredients.map((ingredient, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.ingredientCheckItem,
+                  checkedIngredients[index] && styles.ingredientChecked
+                ]}
+                onPress={() => toggleIngredient(index)}
+              >
+                <View style={[
+                  styles.checkbox,
+                  checkedIngredients[index] && styles.checkboxChecked
+                ]}>
+                  {checkedIngredients[index] && (
+                    <Check size={16} color="#FFFFFF" />
+                  )}
+                </View>
+                <Text style={[
+                  styles.ingredientCheckText,
+                  checkedIngredients[index] && styles.ingredientCheckTextDone
+                ]}>
+                  {ingredient}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
+
+          <TouchableOpacity 
+            style={[
+              styles.proceedButton,
+              !allIngredientsChecked && styles.proceedButtonDisabled
+            ]}
+            onPress={proceedToSteps}
+            disabled={!allIngredientsChecked}
+          >
+            <Text style={styles.proceedButtonText}>
+              {allIngredientsChecked ? 'Start Cooking!' : 'Check all ingredients to continue'}
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
     );
   }
 
+  // Cooking Steps Mode
+  if (cookMode && !ingredientsMode) {
+    const prevStepIndex = currentStep - 1;
+    const nextStepIndex = currentStep + 1;
+    const hasNextStep = nextStepIndex < recipe.instructions.length;
+    const hasPrevStep = prevStepIndex >= 0;
+
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.cookModeHeader}>
+          <TouchableOpacity onPress={exitCookMode}>
+            <ArrowLeft size={24} color="#1E293B" />
+          </TouchableOpacity>
+          <Text style={styles.cookModeTitle}>Cooking Steps</Text>
+          <Text style={styles.stepCounter}>
+            {currentStep + 1} / {recipe.instructions.length}
+          </Text>
+        </View>
+
+        <View style={styles.verticalStepsContainer}>
+          {/* Previous Step (smaller, at top) */}
+          {hasPrevStep && (
+            <View style={styles.previousStepContainer}>
+              <Text style={styles.previousStepLabel}>Previous</Text>
+              <Text style={styles.previousStepText} numberOfLines={2}>
+                {recipe.instructions[prevStepIndex]}
+              </Text>
+            </View>
+          )}
+
+          {/* Current Step (large, in focus) */}
+          <View style={styles.currentStepContainer}>
+            <View style={styles.stepNumberLarge}>
+              <Text style={styles.stepNumberLargeText}>{currentStep + 1}</Text>
+            </View>
+            <ScrollView style={styles.currentStepScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.currentStepText}>
+                {recipe.instructions[currentStep]}
+              </Text>
+            </ScrollView>
+          </View>
+
+          {/* Next Step (smaller, at bottom) */}
+          {hasNextStep && (
+            <View style={styles.nextStepContainer}>
+              <Text style={styles.nextStepLabel}>Next</Text>
+              <Text style={styles.nextStepText} numberOfLines={2}>
+                {recipe.instructions[nextStepIndex]}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Vertical Navigation */}
+        <View style={styles.verticalNavigation}>
+          <TouchableOpacity 
+            style={[styles.verticalNavButton, !hasPrevStep && styles.navButtonDisabled]}
+            onPress={prevStep}
+            disabled={!hasPrevStep}
+          >
+            <ChevronUp size={24} color={hasPrevStep ? "#FF6B35" : "#94A3B8"} />
+            <Text style={[styles.verticalNavText, !hasPrevStep && styles.navButtonTextDisabled]}>
+              Previous
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.verticalNavButton, !hasNextStep && styles.navButtonDisabled]}
+            onPress={hasNextStep ? nextStep : exitCookMode}
+          >
+            <ChevronDown size={24} color={hasNextStep ? "#FF6B35" : "#4ECDC4"} />
+            <Text style={[styles.verticalNavText, !hasNextStep && { color: '#4ECDC4' }]}>
+              {hasNextStep ? 'Next' : 'Complete!'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Regular Recipe View
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -142,7 +268,7 @@ export default function RecipeDetailScreen() {
           {recipe.image_url && (
             <Image source={{ uri: recipe.image_url }} style={styles.heroImage} />
           )}
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButtonOverlay} onPress={() => router.back()}>
             <ArrowLeft size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.imageActions}>
@@ -213,7 +339,7 @@ export default function RecipeDetailScreen() {
             <Heart size={20} color="#FF6B35" />
             <Text style={styles.likeButtonText}>Like</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.cookButton} onPress={() => setCookMode(true)}>
+          <TouchableOpacity style={styles.cookButton} onPress={startCooking}>
             <ChefHat size={20} color="#FFFFFF" />
             <Text style={styles.cookButtonText}>Start Cooking</Text>
           </TouchableOpacity>
@@ -285,7 +411,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  backButton: {
+  backButtonOverlay: {
     position: 'absolute',
     top: 16,
     left: 16,
@@ -296,10 +422,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  backButton: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
   backButtonText: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
-    color: '#FF6B35',
+    color: '#FFFFFF',
   },
   imageActions: {
     position: 'absolute',
@@ -508,6 +640,7 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 24,
   },
+
   // Cook Mode Styles
   cookModeHeader: {
     flexDirection: 'row',
@@ -529,13 +662,125 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     color: '#FF6B35',
   },
-  cookModeContent: {
+  ingredientProgress: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: '#4ECDC4',
+  },
+
+  // Ingredients Collection Mode
+  ingredientsContent: {
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  ingredientsHeader: {
+    padding: 24,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  ingredientsTitle: {
+    fontSize: 24,
+    fontFamily: 'Inter-Bold',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  ingredientsSubtitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  ingredientsList: {
+    padding: 20,
+  },
+  ingredientCheckItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  ingredientChecked: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#4ECDC4',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    marginRight: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#4ECDC4',
+    borderColor: '#4ECDC4',
+  },
+  ingredientCheckText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#1E293B',
+    flex: 1,
+  },
+  ingredientCheckTextDone: {
+    textDecorationLine: 'line-through',
+    color: '#64748B',
+  },
+  proceedButton: {
+    backgroundColor: '#FF6B35',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginVertical: 24,
+  },
+  proceedButtonDisabled: {
+    backgroundColor: '#94A3B8',
+  },
+  proceedButtonText: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
+  },
+
+  // Vertical Steps Mode
+  verticalStepsContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  previousStepContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    opacity: 0.7,
+  },
+  previousStepLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
+    color: '#64748B',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  previousStepText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#64748B',
+    lineHeight: 20,
+  },
   currentStepContainer: {
+    flex: 1,
     padding: 32,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   stepNumberLarge: {
     width: 80,
@@ -551,41 +796,66 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
     color: '#FFFFFF',
   },
+  currentStepScroll: {
+    maxHeight: 200,
+  },
   currentStepText: {
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: 'Inter-Regular',
     color: '#1E293B',
     textAlign: 'center',
-    lineHeight: 28,
+    lineHeight: 30,
   },
-  cookModeNavigation: {
-    flexDirection: 'row',
+  nextStepContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
-  navButton: {
-    flex: 1,
     paddingVertical: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    opacity: 0.7,
+  },
+  nextStepLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
+    color: '#64748B',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  nextStepText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#64748B',
+    lineHeight: 20,
+  },
+  verticalNavigation: {
+    position: 'absolute',
+    right: 20,
+    top: '50%',
+    transform: [{ translateY: -60 }],
     alignItems: 'center',
-    marginHorizontal: 8,
+  },
+  verticalNavButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 30,
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   navButtonDisabled: {
     opacity: 0.5,
   },
-  nextButton: {
-    backgroundColor: '#FF6B35',
-    borderColor: '#FF6B35',
-  },
-  navButtonText: {
-    fontSize: 16,
+  verticalNavText: {
+    fontSize: 10,
     fontFamily: 'Inter-SemiBold',
-    color: '#64748B',
-  },
-  nextButtonText: {
-    color: '#FFFFFF',
+    color: '#FF6B35',
+    marginTop: 2,
   },
   navButtonTextDisabled: {
     color: '#94A3B8',
