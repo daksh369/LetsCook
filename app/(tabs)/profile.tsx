@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image, TextInput, Alert } from 'react-native';
-import { Settings, Share, ChefHat, Users, BookOpen, Heart, Edit, LogOut, X, Check } from 'lucide-react-native';
+import { Settings, Share, ChefHat, Users, BookOpen, Heart, LocationEdit as Edit, LogOut, X, Check } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 

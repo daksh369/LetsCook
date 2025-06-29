@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, RefreshControl } from 'react-native';
-import { Plus, Grid2x2 as Grid, List, Filter } from 'lucide-react-native';
+import { Plus, Grid2x2 as Grid, List, ListFilter as Filter } from 'lucide-react-native';
 import { router } from 'expo-router';
 import RecipeCard from '@/components/RecipeCard';
 import SearchBar from '@/components/SearchBar';
