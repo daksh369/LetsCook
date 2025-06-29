@@ -138,7 +138,12 @@ export function useRecipes() {
   };
 
   const fetchUserRecipes = async () => {
+    console.log('🔍 fetchUserRecipes called');
+    console.log('👤 Current user:', user?.uid);
+    console.log('📝 Current profile:', profile?.name);
+
     if (!user) {
+      console.log('❌ No user found, clearing user recipes');
       setUserRecipes([]);
       setUserRecipesLoading(false);
       return;
@@ -146,6 +151,7 @@ export function useRecipes() {
 
     try {
       setUserRecipesLoading(true);
+      console.log('🚀 Starting to fetch user recipes for:', user.uid);
       
       // Fetch user's recipes (both public and private)
       const userRecipesQuery = query(
@@ -154,11 +160,26 @@ export function useRecipes() {
         orderBy('created_at', 'desc')
       );
       
+      console.log('📊 Executing Firestore query...');
       const userRecipesSnapshot = await getDocs(userRecipesQuery);
-      const userRecipesData = userRecipesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Recipe[];
+      console.log('📋 Query results:', userRecipesSnapshot.docs.length, 'documents found');
+      
+      const userRecipesData = userRecipesSnapshot.docs.map(doc => {
+        const data = { id: doc.id, ...doc.data() } as Recipe;
+        console.log('📄 Recipe found:', data.title, 'by', data.author_id);
+        return data;
+      });
+
+      console.log('🍳 Total user recipes found:', userRecipesData.length);
+      userRecipesData.forEach((recipe, index) => {
+        console.log(`Recipe ${index + 1}:`, {
+          id: recipe.id,
+          title: recipe.title,
+          author_id: recipe.author_id,
+          is_public: recipe.is_public,
+          created_at: recipe.created_at
+        });
+      });
 
       // Add author info (current user) and check interactions
       const recipesWithAuthorAndInteractions = await Promise.all(
@@ -182,7 +203,7 @@ export function useRecipes() {
             const likeSnapshot = await getDocs(likeQuery);
             const isLiked = !likeSnapshot.empty;
 
-            return {
+            const processedRecipe = {
               ...recipe,
               author: {
                 id: user.uid,
@@ -193,8 +214,11 @@ export function useRecipes() {
               isBookmarked,
               isLiked,
             };
+
+            console.log('✅ Processed recipe:', processedRecipe.title, 'with author:', processedRecipe.author.name);
+            return processedRecipe;
           } catch (error) {
-            console.error('Error processing user recipe:', error);
+            console.error('❌ Error processing user recipe:', error);
             return {
               ...recipe,
               author: {
@@ -210,12 +234,14 @@ export function useRecipes() {
         })
       );
 
+      console.log('🎯 Final processed user recipes:', recipesWithAuthorAndInteractions.length);
       setUserRecipes(recipesWithAuthorAndInteractions);
     } catch (error) {
-      console.error('Error fetching user recipes:', error);
+      console.error('💥 Error fetching user recipes:', error);
       setUserRecipes([]);
     } finally {
       setUserRecipesLoading(false);
+      console.log('✅ fetchUserRecipes completed');
     }
   };
 
@@ -244,7 +270,9 @@ export function useRecipes() {
         updated_at: new Date().toISOString(),
       };
 
+      console.log('🆕 Creating new recipe:', recipe.title);
       const docRef = await addDoc(collection(db, 'recipes'), recipe);
+      console.log('✅ Recipe created with ID:', docRef.id);
       
       // Update user's recipe count
       const userProfileRef = doc(db, 'profiles', user.uid);
@@ -255,6 +283,7 @@ export function useRecipes() {
           recipes_count: currentCount + 1,
           updated_at: new Date().toISOString(),
         });
+        console.log('📊 Updated user recipe count to:', currentCount + 1);
       }
 
       // Refresh both recipe lists
@@ -368,8 +397,10 @@ export function useRecipes() {
   useEffect(() => {
     // Fetch user recipes when user or profile changes
     if (user) {
+      console.log('🔄 User or profile changed, fetching user recipes...');
       fetchUserRecipes();
     } else {
+      console.log('🚫 No user, clearing user recipes');
       setUserRecipes([]);
       setUserRecipesLoading(false);
     }
