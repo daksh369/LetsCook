@@ -179,15 +179,10 @@ export default function RecipeDetailScreen() {
     );
   }
 
-  // Cooking Steps Mode
+  // Cooking Steps Mode - Timeline Design
   if (cookMode && !ingredientsMode) {
-    const prevStepIndex = currentStep - 1;
-    const nextStepIndex = currentStep + 1;
-    const hasNextStep = nextStepIndex < recipe.instructions.length;
-    const hasPrevStep = prevStepIndex >= 0;
-
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.timelineContainer}>
         <View style={styles.cookModeHeader}>
           <TouchableOpacity onPress={exitCookMode}>
             <ArrowLeft size={24} color="#1E293B" />
@@ -198,60 +193,117 @@ export default function RecipeDetailScreen() {
           </Text>
         </View>
 
-        <View style={styles.verticalStepsContainer}>
-          {/* Previous Step (smaller, at top) */}
-          {hasPrevStep && (
-            <View style={styles.previousStepContainer}>
-              <Text style={styles.previousStepLabel}>Previous</Text>
-              <Text style={styles.previousStepText} numberOfLines={2}>
-                {recipe.instructions[prevStepIndex]}
-              </Text>
-            </View>
-          )}
+        <ScrollView style={styles.timelineContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.timelineSteps}>
+            {recipe.instructions.map((instruction, index) => {
+              const isCurrent = index === currentStep;
+              const isPast = index < currentStep;
+              const isFuture = index > currentStep;
+              
+              return (
+                <View key={index} style={styles.timelineStep}>
+                  {/* Timeline Line */}
+                  <View style={styles.timelineLine}>
+                    {index > 0 && (
+                      <View style={[
+                        styles.lineSegment,
+                        styles.lineTop,
+                        isPast && styles.lineCompleted
+                      ]} />
+                    )}
+                    
+                    {/* Step Circle */}
+                    <View style={[
+                      styles.stepCircle,
+                      isPast && styles.stepCircleCompleted,
+                      isCurrent && styles.stepCircleCurrent,
+                      isFuture && styles.stepCircleFuture
+                    ]}>
+                      {isPast ? (
+                        <Check size={16} color="#FFFFFF" />
+                      ) : (
+                        <Text style={[
+                          styles.stepCircleText,
+                          isCurrent && styles.stepCircleTextCurrent,
+                          isFuture && styles.stepCircleTextFuture
+                        ]}>
+                          {index + 1}
+                        </Text>
+                      )}
+                    </View>
+                    
+                    {index < recipe.instructions.length - 1 && (
+                      <View style={[
+                        styles.lineSegment,
+                        styles.lineBottom,
+                        isPast && styles.lineCompleted
+                      ]} />
+                    )}
+                  </View>
 
-          {/* Current Step (large, in focus) */}
-          <View style={styles.currentStepContainer}>
-            <View style={styles.stepNumberLarge}>
-              <Text style={styles.stepNumberLargeText}>{currentStep + 1}</Text>
-            </View>
-            <ScrollView style={styles.currentStepScroll} showsVerticalScrollIndicator={false}>
-              <Text style={styles.currentStepText}>
-                {recipe.instructions[currentStep]}
-              </Text>
-            </ScrollView>
+                  {/* Step Content */}
+                  <View style={[
+                    styles.stepContent,
+                    isCurrent && styles.stepContentCurrent,
+                    isFuture && styles.stepContentFuture
+                  ]}>
+                    <Text style={[
+                      styles.stepTitle,
+                      isCurrent && styles.stepTitleCurrent,
+                      isFuture && styles.stepTitleFuture
+                    ]}>
+                      Step {index + 1}
+                    </Text>
+                    <Text style={[
+                      styles.stepText,
+                      isCurrent && styles.stepTextCurrent,
+                      isFuture && styles.stepTextFuture
+                    ]}>
+                      {instruction}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
+        </ScrollView>
 
-          {/* Next Step (smaller, at bottom) */}
-          {hasNextStep && (
-            <View style={styles.nextStepContainer}>
-              <Text style={styles.nextStepLabel}>Next</Text>
-              <Text style={styles.nextStepText} numberOfLines={2}>
-                {recipe.instructions[nextStepIndex]}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Vertical Navigation */}
-        <View style={styles.verticalNavigation}>
+        {/* Navigation Controls */}
+        <View style={styles.navigationControls}>
           <TouchableOpacity 
-            style={[styles.verticalNavButton, !hasPrevStep && styles.navButtonDisabled]}
+            style={[
+              styles.navButton,
+              styles.prevButton,
+              currentStep === 0 && styles.navButtonDisabled
+            ]}
             onPress={prevStep}
-            disabled={!hasPrevStep}
+            disabled={currentStep === 0}
           >
-            <ChevronUp size={24} color={hasPrevStep ? "#FF6B35" : "#94A3B8"} />
-            <Text style={[styles.verticalNavText, !hasPrevStep && styles.navButtonTextDisabled]}>
+            <ChevronUp size={24} color={currentStep === 0 ? "#94A3B8" : "#FF6B35"} />
+            <Text style={[
+              styles.navButtonText,
+              currentStep === 0 && styles.navButtonTextDisabled
+            ]}>
               Previous
             </Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={[styles.verticalNavButton, !hasNextStep && styles.navButtonDisabled]}
-            onPress={hasNextStep ? nextStep : exitCookMode}
+            style={[
+              styles.navButton,
+              styles.nextButton,
+              currentStep === recipe.instructions.length - 1 && styles.completeButton
+            ]}
+            onPress={currentStep === recipe.instructions.length - 1 ? exitCookMode : nextStep}
           >
-            <ChevronDown size={24} color={hasNextStep ? "#FF6B35" : "#4ECDC4"} />
-            <Text style={[styles.verticalNavText, !hasNextStep && { color: '#4ECDC4' }]}>
-              {hasNextStep ? 'Next' : 'Complete!'}
+            <ChevronDown size={24} color={
+              currentStep === recipe.instructions.length - 1 ? "#4ECDC4" : "#FF6B35"
+            } />
+            <Text style={[
+              styles.navButtonText,
+              currentStep === recipe.instructions.length - 1 && styles.completeButtonText
+            ]}>
+              {currentStep === recipe.instructions.length - 1 ? 'Complete!' : 'Next'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -750,114 +802,180 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // Vertical Steps Mode
-  verticalStepsContainer: {
+  // Timeline Design Styles
+  timelineContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  previousStepContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#F8FAFC',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    opacity: 0.7,
-  },
-  previousStepLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter-SemiBold',
-    color: '#64748B',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  previousStepText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#64748B',
-    lineHeight: 20,
-  },
-  currentStepContainer: {
+  timelineContent: {
     flex: 1,
-    padding: 32,
+    paddingHorizontal: 24,
+  },
+  timelineSteps: {
+    paddingVertical: 32,
+  },
+  timelineStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  timelineLine: {
     alignItems: 'center',
-    justifyContent: 'center',
+    width: 40,
+    marginRight: 20,
   },
-  stepNumberLarge: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FF6B35',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
+  lineSegment: {
+    width: 2,
+    height: 40,
+    backgroundColor: '#E2E8F0',
   },
-  stepNumberLargeText: {
-    fontSize: 32,
-    fontFamily: 'Inter-Bold',
-    color: '#FFFFFF',
+  lineTop: {
+    marginBottom: -2,
   },
-  currentStepScroll: {
-    maxHeight: 200,
+  lineBottom: {
+    marginTop: -2,
   },
-  currentStepText: {
-    fontSize: 20,
-    fontFamily: 'Inter-Regular',
-    color: '#1E293B',
-    textAlign: 'center',
-    lineHeight: 30,
+  lineCompleted: {
+    backgroundColor: '#4ECDC4',
   },
-  nextStepContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#F8FAFC',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    opacity: 0.7,
-  },
-  nextStepLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter-SemiBold',
-    color: '#64748B',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  nextStepText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#64748B',
-    lineHeight: 20,
-  },
-  verticalNavigation: {
-    position: 'absolute',
-    right: 20,
-    top: '50%',
-    transform: [{ translateY: -60 }],
-    alignItems: 'center',
-  },
-  verticalNavButton: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 30,
-    width: 60,
-    height: 60,
+  stepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    zIndex: 1,
+  },
+  stepCircleCompleted: {
+    backgroundColor: '#4ECDC4',
+    borderColor: '#4ECDC4',
+  },
+  stepCircleCurrent: {
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
+    transform: [{ scale: 1.2 }],
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 8,
+  },
+  stepCircleFuture: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+  },
+  stepCircleText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: '#64748B',
+  },
+  stepCircleTextCurrent: {
+    color: '#FFFFFF',
+    fontSize: 16,
+  },
+  stepCircleTextFuture: {
+    color: '#94A3B8',
+  },
+  stepContent: {
+    flex: 1,
+    paddingVertical: 4,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    opacity: 0.6,
+  },
+  stepContentCurrent: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#6366F1',
+    borderWidth: 2,
+    opacity: 1,
+    transform: [{ scale: 1.02 }],
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  stepContentFuture: {
+    opacity: 0.4,
+  },
+  stepTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  stepTitleCurrent: {
+    fontSize: 16,
+    color: '#6366F1',
+  },
+  stepTitleFuture: {
+    color: '#94A3B8',
+  },
+  stepText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#64748B',
+    lineHeight: 20,
+  },
+  stepTextCurrent: {
+    fontSize: 16,
+    color: '#1E293B',
+    lineHeight: 24,
+  },
+  stepTextFuture: {
+    color: '#94A3B8',
+  },
+  navigationControls: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 16,
+  },
+  navButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+  },
+  prevButton: {
+    borderColor: '#FF6B35',
+  },
+  nextButton: {
+    backgroundColor: '#FF6B35',
+    borderColor: '#FF6B35',
+  },
+  completeButton: {
+    backgroundColor: '#4ECDC4',
+    borderColor: '#4ECDC4',
   },
   navButtonDisabled: {
     opacity: 0.5,
+    borderColor: '#E2E8F0',
   },
-  verticalNavText: {
-    fontSize: 10,
+  navButtonText: {
+    fontSize: 16,
     fontFamily: 'Inter-SemiBold',
     color: '#FF6B35',
-    marginTop: 2,
+    marginLeft: 8,
   },
   navButtonTextDisabled: {
     color: '#94A3B8',
+  },
+  completeButtonText: {
+    color: '#FFFFFF',
   },
 });
