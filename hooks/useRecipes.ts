@@ -45,6 +45,7 @@ export interface Recipe {
 
 export function useRecipes() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [userRecipes, setUserRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -135,6 +136,40 @@ export function useRecipes() {
     }
   };
 
+  const fetchUserRecipes = async () => {
+    if (!user) return;
+
+    try {
+      // Fetch user's recipes (both public and private)
+      const userRecipesQuery = query(
+        collection(db, 'recipes'),
+        where('author_id', '==', user.uid),
+        orderBy('created_at', 'desc')
+      );
+      
+      const userRecipesSnapshot = await getDocs(userRecipesQuery);
+      const userRecipesData = userRecipesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Recipe[];
+
+      // Add author info (current user)
+      const recipesWithAuthor = userRecipesData.map(recipe => ({
+        ...recipe,
+        author: {
+          id: user.uid,
+          name: user.displayName || 'You',
+          username: user.email?.split('@')[0] || 'you',
+          avatar_url: user.photoURL,
+        }
+      }));
+
+      setUserRecipes(recipesWithAuthor);
+    } catch (error) {
+      console.error('Error fetching user recipes:', error);
+    }
+  };
+
   const createRecipe = async (recipeData: {
     title: string;
     description: string;
@@ -173,7 +208,8 @@ export function useRecipes() {
         });
       }
 
-      await fetchRecipes();
+      // Refresh both recipe lists
+      await Promise.all([fetchRecipes(), fetchUserRecipes()]);
       return { data: { id: docRef.id, ...recipe }, error: null };
     } catch (error) {
       console.error('Error creating recipe:', error);
@@ -208,6 +244,12 @@ export function useRecipes() {
 
       // Update local state
       setRecipes(prev => prev.map(recipe => 
+        recipe.id === recipeId 
+          ? { ...recipe, isBookmarked: !recipe.isBookmarked }
+          : recipe
+      ));
+      
+      setUserRecipes(prev => prev.map(recipe => 
         recipe.id === recipeId 
           ? { ...recipe, isBookmarked: !recipe.isBookmarked }
           : recipe
@@ -248,6 +290,12 @@ export function useRecipes() {
           ? { ...recipe, isLiked: !recipe.isLiked }
           : recipe
       ));
+      
+      setUserRecipes(prev => prev.map(recipe => 
+        recipe.id === recipeId 
+          ? { ...recipe, isLiked: !recipe.isLiked }
+          : recipe
+      ));
     } catch (error) {
       console.error('Error toggling like:', error);
     }
@@ -272,13 +320,19 @@ export function useRecipes() {
   };
 
   useEffect(() => {
-    fetchRecipes();
+    if (user) {
+      Promise.all([fetchRecipes(), fetchUserRecipes()]);
+    } else {
+      fetchRecipes();
+    }
   }, [user]);
 
   return {
     recipes,
+    userRecipes,
     loading,
     fetchRecipes,
+    fetchUserRecipes,
     createRecipe,
     toggleBookmark,
     toggleLike,

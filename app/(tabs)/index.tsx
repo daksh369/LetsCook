@@ -22,7 +22,33 @@ export default function HomeScreen() {
     router.push(`/recipe/${recipeId}`);
   };
 
-  if (!profile) return null;
+  const getFilteredRecipes = () => {
+    switch (activeTab) {
+      case 'feed':
+        // Show recipes from followed users (for now, show all public recipes)
+        return recipes;
+      case 'discover':
+        // Show recommended recipes (for now, show all public recipes sorted by rating)
+        return [...recipes].sort((a, b) => b.rating - a.rating);
+      case 'trending':
+        // Show trending recipes (for now, show recipes with most likes)
+        return [...recipes].sort((a, b) => b.reviews_count - a.reviews_count);
+      default:
+        return recipes;
+    }
+  };
+
+  const filteredRecipes = getFilteredRecipes();
+
+  if (!profile) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -79,15 +105,38 @@ export default function HomeScreen() {
              activeTab === 'discover' ? 'Recommended for you' : 
              'Trending recipes'}
           </Text>
-          {recipes.map((recipe) => (
-            <RecipeCard
-              key={recipe.id}
-              recipe={recipe}
-              onPress={() => handleRecipePress(recipe.id)}
-              onBookmark={() => toggleBookmark(recipe.id)}
-              onLike={() => toggleLike(recipe.id)}
-            />
-          ))}
+          
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading recipes...</Text>
+            </View>
+          ) : filteredRecipes.length > 0 ? (
+            filteredRecipes.map((recipe) => (
+              <RecipeCard
+                key={recipe.id}
+                recipe={recipe}
+                onPress={() => handleRecipePress(recipe.id)}
+                onBookmark={() => toggleBookmark(recipe.id)}
+                onLike={() => toggleLike(recipe.id)}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateTitle}>No recipes found</Text>
+              <Text style={styles.emptyStateText}>
+                {activeTab === 'feed' 
+                  ? 'Follow some chefs to see their recipes here'
+                  : 'Check back later for new recipes'
+                }
+              </Text>
+              <TouchableOpacity 
+                style={styles.exploreButton}
+                onPress={() => router.push('/(tabs)/search')}
+              >
+                <Text style={styles.exploreButtonText}>Explore Recipes</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -98,6 +147,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    color: '#64748B',
   },
   header: {
     flexDirection: 'row',
@@ -163,5 +223,36 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 12,
     marginTop: 8,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 32,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter-SemiBold',
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  exploreButton: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  exploreButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
   },
 });

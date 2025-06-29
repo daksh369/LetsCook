@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, RefreshControl } from 'react-native';
 import { Plus, Grid2x2 as Grid, List, Filter } from 'lucide-react-native';
 import { router } from 'expo-router';
 import RecipeCard from '@/components/RecipeCard';
@@ -11,29 +11,34 @@ export default function MyRecipesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [refreshing, setRefreshing] = useState(false);
   
-  const { recipes, loading } = useRecipes();
+  const { userRecipes, loading, fetchUserRecipes, toggleBookmark, toggleLike } = useRecipes();
   const { user } = useAuth();
 
   const categories = ['All', 'Favorites', 'Recently Added', 'Most Cooked', 'Vegetarian', 'Quick Meals'];
 
-  // Filter recipes to show only user's recipes
-  const userRecipes = recipes.filter(recipe => recipe.author_id === user?.uid);
-
   const filteredRecipes = userRecipes.filter(recipe => {
     const matchesSearch = recipe.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || 
+                           (selectedCategory === 'Favorites' && recipe.isBookmarked) ||
                            recipe.tags.includes(selectedCategory) ||
                            recipe.dietary_info.includes(selectedCategory);
     return matchesSearch && matchesCategory;
   });
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchUserRecipes();
+    setRefreshing(false);
+  };
+
   const handleBookmark = (recipeId: string) => {
-    console.log('Bookmark recipe:', recipeId);
+    toggleBookmark(recipeId);
   };
 
   const handleLike = (recipeId: string) => {
-    console.log('Like recipe:', recipeId);
+    toggleLike(recipeId);
   };
 
   const handleAddRecipe = () => {
@@ -43,6 +48,16 @@ export default function MyRecipesScreen() {
   const handleRecipePress = (recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading your recipes...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -125,7 +140,13 @@ export default function MyRecipesScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {filteredRecipes.map((recipe) => (
           <RecipeCard
             key={recipe.id}
@@ -147,10 +168,12 @@ export default function MyRecipesScreen() {
                 : 'Try adjusting your search terms'
               }
             </Text>
-            <TouchableOpacity style={styles.emptyStateButton} onPress={handleAddRecipe}>
-              <Plus size={20} color="#FFFFFF" />
-              <Text style={styles.emptyStateButtonText}>Add Your First Recipe</Text>
-            </TouchableOpacity>
+            {userRecipes.length === 0 && (
+              <TouchableOpacity style={styles.emptyStateButton} onPress={handleAddRecipe}>
+                <Plus size={20} color="#FFFFFF" />
+                <Text style={styles.emptyStateButtonText}>Add Your First Recipe</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </ScrollView>
@@ -162,6 +185,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    color: '#64748B',
   },
   header: {
     flexDirection: 'row',
