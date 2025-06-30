@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, RefreshControl } from 'react-native';
-import { Plus, Grid2x2 as Grid, List, ListFilter as Filter } from 'lucide-react-native';
+import { Plus, Grid2x2 as Grid, List, ListFilter as Filter, Edit } from 'lucide-react-native';
 import { router } from 'expo-router';
 import RecipeCard from '@/components/RecipeCard';
 import SearchBar from '@/components/SearchBar';
@@ -65,6 +65,12 @@ export default function MyRecipesScreen() {
   const handleRecipePress = (recipeId: string) => {
     console.log('👆 Recipe pressed:', recipeId);
     router.push(`/recipe/${recipeId}`);
+  };
+
+  const handleEditRecipe = (recipeId: string) => {
+    console.log('✏️ Edit recipe pressed:', recipeId);
+    // TODO: Navigate to edit recipe screen
+    router.push(`/(tabs)/add?edit=${recipeId}`);
   };
 
   if (userRecipesLoading) {
@@ -172,13 +178,23 @@ export default function MyRecipesScreen() {
           filteredRecipes.map((recipe) => {
             console.log('🎯 Rendering recipe card for:', recipe.title);
             return (
-              <RecipeCard
-                key={recipe.id}
-                recipe={recipe}
-                onPress={() => handleRecipePress(recipe.id)}
-                onBookmark={() => handleBookmark(recipe.id)}
-                onLike={() => handleLike(recipe.id)}
-              />
+              <View key={recipe.id} style={styles.recipeCardContainer}>
+                <RecipeCard
+                  recipe={recipe}
+                  onPress={() => handleRecipePress(recipe.id)}
+                  onBookmark={() => handleBookmark(recipe.id)}
+                  onLike={() => handleLike(recipe.id)}
+                />
+                {/* Edit button overlay for user's own recipes */}
+                {recipe.author_id === user?.uid && (
+                  <TouchableOpacity 
+                    style={styles.editButton}
+                    onPress={() => handleEditRecipe(recipe.id)}
+                  >
+                    <Edit size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                )}
+              </View>
             );
           })
         ) : (
@@ -200,6 +216,9 @@ export default function MyRecipesScreen() {
             )}
           </View>
         )}
+        
+        {/* Bottom padding to account for tab bar */}
+        <View style={styles.bottomPadding} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -282,22 +301,25 @@ const styles = StyleSheet.create({
   },
   categories: {
     paddingHorizontal: 16,
+    flexDirection: 'row',
   },
   categoryChip: {
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     marginRight: 8,
+    minWidth: 80,
+    alignItems: 'center',
   },
   selectedCategory: {
     backgroundColor: '#FF6B35',
   },
   categoryText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Inter-Medium',
     color: '#64748B',
-    whiteSpace: 'nowrap',
+    textAlign: 'center',
   },
   selectedCategoryText: {
     color: '#FFFFFF',
@@ -329,6 +351,26 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  recipeCardContainer: {
+    position: 'relative',
+  },
+  editButton: {
+    position: 'absolute',
+    top: 20,
+    right: 28,
+    backgroundColor: '#FF6B35',
+    borderRadius: 16,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   emptyState: {
     alignItems: 'center',
@@ -363,5 +405,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     color: '#FFFFFF',
     marginLeft: 8,
+  },
+  bottomPadding: {
+    height: 80, // Account for tab bar
   },
 });

@@ -27,6 +27,10 @@ export default function TabLayout() {
           paddingTop: 5,
           paddingBottom: 5,
           height: 60,
+          position: 'absolute', // Keep tabs visible over all screens
+          bottom: 0,
+          left: 0,
+          right: 0,
         },
         tabBarActiveTintColor: '#FF6B35',
         tabBarInactiveTintColor: '#94A3B8',

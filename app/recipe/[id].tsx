@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { Recipe } from '@/hooks/useRecipes';
+import { Recipe, useRecipes } from '@/hooks/useRecipes';
 
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -16,6 +16,7 @@ export default function RecipeDetailScreen() {
   const [checkedIngredients, setCheckedIngredients] = useState<boolean[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const { user } = useAuth();
+  const { toggleLike } = useRecipes();
 
   useEffect(() => {
     if (id) {
@@ -52,6 +53,16 @@ export default function RecipeDetailScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLike = async () => {
+    if (!recipe || !user) return;
+    
+    // Optimistically update UI
+    setRecipe(prev => prev ? { ...prev, isLiked: !prev.isLiked } : null);
+    
+    // Update in database
+    await toggleLike(recipe.id);
   };
 
   const toggleIngredient = (index: number) => {
@@ -117,7 +128,7 @@ export default function RecipeDetailScreen() {
   // Ingredients Collection Mode
   if (cookMode && ingredientsMode) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.fullScreenContainer}>
         <View style={styles.cookModeHeader}>
           <TouchableOpacity onPress={exitCookMode}>
             <ArrowLeft size={24} color="#1E293B" />
@@ -182,7 +193,7 @@ export default function RecipeDetailScreen() {
   // Cooking Steps Mode - Timeline Design
   if (cookMode && !ingredientsMode) {
     return (
-      <SafeAreaView style={styles.timelineContainer}>
+      <SafeAreaView style={styles.fullScreenContainer}>
         <View style={styles.cookModeHeader}>
           <TouchableOpacity onPress={exitCookMode}>
             <ArrowLeft size={24} color="#1E293B" />
@@ -279,9 +290,10 @@ export default function RecipeDetailScreen() {
             onPress={prevStep}
             disabled={currentStep === 0}
           >
-            <ChevronUp size={24} color={currentStep === 0 ? "#94A3B8" : "#FF6B35"} />
+            <ChevronUp size={24} color={currentStep === 0 ? "#94A3B8" : "#64748B"} />
             <Text style={[
               styles.navButtonText,
+              styles.navButtonTextGrey,
               currentStep === 0 && styles.navButtonTextDisabled
             ]}>
               Previous
@@ -296,13 +308,8 @@ export default function RecipeDetailScreen() {
             ]}
             onPress={currentStep === recipe.instructions.length - 1 ? exitCookMode : nextStep}
           >
-            <ChevronDown size={24} color={
-              currentStep === recipe.instructions.length - 1 ? "#4ECDC4" : "#FF6B35"
-            } />
-            <Text style={[
-              styles.navButtonText,
-              currentStep === recipe.instructions.length - 1 && styles.completeButtonText
-            ]}>
+            <ChevronDown size={24} color="#FFFFFF" />
+            <Text style={styles.navButtonTextWhite}>
               {currentStep === recipe.instructions.length - 1 ? 'Complete!' : 'Next'}
             </Text>
           </TouchableOpacity>
@@ -387,9 +394,24 @@ export default function RecipeDetailScreen() {
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.likeButton}>
-            <Heart size={20} color="#FF6B35" />
-            <Text style={styles.likeButtonText}>Like</Text>
+          <TouchableOpacity 
+            style={[
+              styles.likeButton,
+              recipe.isLiked && styles.likeButtonActive
+            ]} 
+            onPress={handleLike}
+          >
+            <Heart 
+              size={20} 
+              color={recipe.isLiked ? "#FFFFFF" : "#FF6B35"} 
+              fill={recipe.isLiked ? "#FF6B35" : "transparent"}
+            />
+            <Text style={[
+              styles.likeButtonText,
+              recipe.isLiked && styles.likeButtonTextActive
+            ]}>
+              {recipe.isLiked ? 'Liked' : 'Like'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.cookButton} onPress={startCooking}>
             <ChefHat size={20} color="#FFFFFF" />
@@ -420,6 +442,9 @@ export default function RecipeDetailScreen() {
             </View>
           ))}
         </View>
+
+        {/* Bottom padding to account for tab bar */}
+        <View style={styles.bottomPadding} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -429,6 +454,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  fullScreenContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
@@ -454,6 +483,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  bottomPadding: {
+    height: 80, // Account for tab bar
   },
   imageContainer: {
     position: 'relative',
@@ -613,12 +645,19 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FF6B35',
     marginRight: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  likeButtonActive: {
+    backgroundColor: '#FF6B35',
   },
   likeButtonText: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
     color: '#FF6B35',
     marginLeft: 8,
+  },
+  likeButtonTextActive: {
+    color: '#FFFFFF',
   },
   cookButton: {
     flex: 2,
@@ -803,10 +842,6 @@ const styles = StyleSheet.create({
   },
 
   // Timeline Design Styles
-  timelineContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
   timelineContent: {
     flex: 1,
     paddingHorizontal: 24,
@@ -952,7 +987,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   prevButton: {
-    borderColor: '#FF6B35',
+    borderColor: '#E2E8F0',
   },
   nextButton: {
     backgroundColor: '#FF6B35',
@@ -969,13 +1004,18 @@ const styles = StyleSheet.create({
   navButtonText: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
-    color: '#FF6B35',
+    marginLeft: 8,
+  },
+  navButtonTextGrey: {
+    color: '#64748B',
+  },
+  navButtonTextWhite: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
     marginLeft: 8,
   },
   navButtonTextDisabled: {
     color: '#94A3B8',
-  },
-  completeButtonText: {
-    color: '#FFFFFF',
   },
 });
