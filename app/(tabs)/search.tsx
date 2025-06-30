@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, RefreshControl } from 'react-native';
-import { Filter, Clock, Users, Star, UserPlus } from 'lucide-react-native';
+import { ListFilter as Filter, Clock, Users, Star, UserPlus } from 'lucide-react-native';
 import { router } from 'expo-router';
 import SearchBar from '@/components/SearchBar';
 import RecipeCard from '@/components/RecipeCard';

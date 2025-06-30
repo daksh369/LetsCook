@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Switch, Alert } from 'react-native';
-import { ArrowLeft, Bell, Shield, Palette, Download, HelpCircle, LogOut, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, Bell, Shield, Palette, Download, Circle as HelpCircle, LogOut, ChevronRight } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
