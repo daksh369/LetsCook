@@ -1,5 +1,3 @@
-// app/_layout.tsx
-
 import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -10,7 +8,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 // Keep the splash screen visible while we check auth status
 SplashScreen.preventAutoHideAsync();
 
-// This is the new component that will handle the redirection
+// This component handles automatic redirection based on auth state
 const InitialLayout = () => {
   const { user, loading } = useAuth();
   const segments = useSegments();
@@ -24,15 +22,13 @@ const InitialLayout = () => {
 
     const inAuthGroup = segments[0] === '(auth)';
 
-    if (user && !inAuthGroup) {
-      // If the user is signed in and not in the main app (tabs) group,
-      // redirect them to the main app.
-      console.log('User is signed in, redirecting to (tabs)');
+    if (user && inAuthGroup) {
+      // If the user is signed in and in the auth group, redirect to main app
+      console.log('✅ User is signed in, redirecting to (tabs)');
       router.replace('/(tabs)');
     } else if (!user && !inAuthGroup) {
-      // If the user is not signed in and not in the auth group,
-      // redirect them to the login screen.
-      console.log('User is signed out, redirecting to login');
+      // If the user is not signed in and not in the auth group, redirect to login
+      console.log('🔐 User is signed out, redirecting to login');
       router.replace('/(auth)/login');
     }
 
@@ -42,18 +38,21 @@ const InitialLayout = () => {
   }, [user, loading, segments, router]);
 
   // Render the main stack navigator
-  // This navigator will render the correct group based on the URL,
-  // and the useEffect above will handle redirecting to the correct URL.
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="recipe/[id]" />
+      <Stack.Screen name="reviews/[id]" />
+      <Stack.Screen name="share/[id]" />
+      <Stack.Screen name="cooked/[id]" />
+      <Stack.Screen name="user/[id]" />
+      <Stack.Screen name="collections" />
+      <Stack.Screen name="onboarding" />
       <Stack.Screen name="+not-found" />
     </Stack>
   );
 };
-
 
 export default function RootLayout() {
   // Font loading remains the same
@@ -67,7 +66,6 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontError) {
       // If fonts fail to load, we should still hide the splash screen
-      // to avoid getting stuck.
       SplashScreen.hideAsync();
       console.error("Font loading error:", fontError);
     }

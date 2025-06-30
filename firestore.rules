@@ -1,0 +1,78 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read and write their own profile
+    match /profiles/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null; // Allow reading other profiles for social features
+    }
+
+    // Recipes rules
+    match /recipes/{recipeId} {
+      allow read: if resource.data.is_public == true || (request.auth != null && request.auth.uid == resource.data.author_id);
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.author_id;
+      allow update: if request.auth != null && request.auth.uid == resource.data.author_id;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.author_id;
+    }
+
+    // Recipe bookmarks
+    match /recipe_bookmarks/{bookmarkId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.user_id;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
+    }
+
+    // Recipe likes
+    match /recipe_likes/{likeId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.user_id;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
+    }
+
+    // Recipe reviews
+    match /recipe_reviews/{reviewId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
+      allow update: if request.auth != null && request.auth.uid == resource.data.user_id;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.user_id;
+    }
+
+    // Review helpful votes
+    match /review_helpful/{helpfulId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.user_id;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
+    }
+
+    // Collections
+    match /collections/{collectionId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.user_id;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
+    }
+
+    // Collection recipes
+    match /collection_recipes/{collectionRecipeId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.user_id;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
+    }
+
+    // User follows
+    match /user_follows/{followId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.follower_id;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.follower_id;
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.user_id;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid == resource.data.user_id;
+    }
+
+    // Recipe cooked posts
+    match /recipe_cooked/{cookedId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
+      allow update: if request.auth != null && request.auth.uid == resource.data.user_id;
+    }
+  }
+}
