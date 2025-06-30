@@ -11,6 +11,18 @@ interface RecipeCardProps {
 }
 
 export default function RecipeCard({ recipe, onPress, onBookmark, onLike }: RecipeCardProps) {
+  const handleLike = () => {
+    console.log('🎯 RecipeCard - Like button pressed for:', recipe.title);
+    console.log('❤️ Current like state:', recipe.isLiked);
+    onLike?.();
+  };
+
+  const handleBookmark = () => {
+    console.log('🔖 RecipeCard - Bookmark button pressed for:', recipe.title);
+    console.log('📌 Current bookmark state:', recipe.isBookmarked);
+    onBookmark?.();
+  };
+
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.imageContainer}>
@@ -20,11 +32,11 @@ export default function RecipeCard({ recipe, onPress, onBookmark, onLike }: Reci
           }} 
           style={styles.image} 
         />
-        <TouchableOpacity style={styles.bookmarkButton} onPress={onBookmark}>
+        <TouchableOpacity style={styles.bookmarkButton} onPress={handleBookmark}>
           <Bookmark
             size={20}
-            color={recipe.isBookmarked ? '#FF6B35' : '#FFFFFF'}
-            fill={recipe.isBookmarked ? '#FF6B35' : 'transparent'}
+            color={recipe.isBookmarked ? "#FF6B35" : "#FFFFFF"}
+            fill={recipe.isBookmarked ? "#FF6B35" : "transparent"}
           />
         </TouchableOpacity>
         <View style={styles.difficultyBadge}>
@@ -73,13 +85,22 @@ export default function RecipeCard({ recipe, onPress, onBookmark, onLike }: Reci
         </View>
         
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.likeButton} onPress={onLike}>
+          <TouchableOpacity 
+            style={[
+              styles.likeButton,
+              recipe.isLiked && styles.likeButtonActive
+            ]} 
+            onPress={handleLike}
+          >
             <Heart 
               size={20} 
-              color={recipe.isLiked ? '#FF6B35' : '#64748B'} 
-              fill={recipe.isLiked ? '#FF6B35' : 'transparent'}
+              color={recipe.isLiked ? "#FFFFFF" : "#FF6B35"} 
+              fill={recipe.isLiked ? "#FF6B35" : "transparent"}
             />
-            <Text style={[styles.actionText, recipe.isLiked && styles.actionTextActive]}>
+            <Text style={[
+              styles.actionText,
+              recipe.isLiked && styles.actionTextActive
+            ]}>
               {recipe.isLiked ? 'Liked' : 'Like'}
             </Text>
           </TouchableOpacity>
@@ -217,15 +238,25 @@ const styles = StyleSheet.create({
   likeButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+    backgroundColor: '#FFFFFF',
+  },
+  likeButtonActive: {
+    backgroundColor: '#FF6B35',
+    borderColor: '#FF6B35',
   },
   actionText: {
     fontSize: 14,
     fontFamily: 'Inter-Medium',
-    color: '#64748B',
+    color: '#FF6B35',
     marginLeft: 6,
   },
   actionTextActive: {
-    color: '#FF6B35',
+    color: '#FFFFFF',
   },
   shareButton: {
     backgroundColor: '#FF6B35',
