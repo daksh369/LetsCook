@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image, Alert } from 'react-native';
-import { ArrowLeft, Clock, Users, Star, Bookmark, Heart, Share, ChefHat, Check, ChevronUp, ChevronDown, MessageSquare, Camera, Edit } from 'lucide-react-native';
+import { ArrowLeft, Clock, Users, Star, Bookmark, Heart, Share, ChefHat, Check, ChevronUp, ChevronDown, MessageSquare, Camera, LocationEdit as Edit } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
