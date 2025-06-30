@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image, Alert } from 'react-native';
-import { ArrowLeft, Clock, Users, Star, Bookmark, Heart, Share, ChefHat, Check, ChevronUp, ChevronDown, MessageSquare } from 'lucide-react-native';
+import { ArrowLeft, Clock, Users, Star, Bookmark, Heart, Share, ChefHat, Check, ChevronUp, ChevronDown, MessageSquare, Camera } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -16,6 +16,7 @@ export default function RecipeDetailScreen() {
   const [ingredientsMode, setIngredientsMode] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState<boolean[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
+  const [showCookedForm, setShowCookedForm] = useState(false);
   const { user } = useAuth();
   const { toggleLike, toggleBookmark } = useRecipes();
 
@@ -53,6 +54,14 @@ export default function RecipeDetailScreen() {
       console.error('Error fetching recipe:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.push('/(tabs)');
     }
   };
 
@@ -99,6 +108,14 @@ export default function RecipeDetailScreen() {
   const handleViewReviews = () => {
     if (!recipe) return;
     router.push(`/reviews/${recipe.id}`);
+  };
+
+  const handleCookedThis = () => {
+    if (!user) {
+      Alert.alert('Sign In Required', 'Please sign in to share your cooking experience');
+      return;
+    }
+    setShowCookedForm(true);
   };
 
   const toggleIngredient = (index: number) => {
@@ -153,7 +170,7 @@ export default function RecipeDetailScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Recipe not found</Text>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
             <Text style={styles.backButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -363,7 +380,7 @@ export default function RecipeDetailScreen() {
           {recipe.image_url && (
             <Image source={{ uri: recipe.image_url }} style={styles.heroImage} />
           )}
-          <TouchableOpacity style={styles.backButtonOverlay} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButtonOverlay} onPress={handleBack}>
             <ArrowLeft size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.imageActions}>
@@ -459,6 +476,11 @@ export default function RecipeDetailScreen() {
             <Text style={styles.reviewsButtonText}>Reviews</Text>
           </TouchableOpacity>
           
+          <TouchableOpacity style={styles.cookedButton} onPress={handleCookedThis}>
+            <Camera size={20} color="#FFFFFF" />
+            <Text style={styles.cookedButtonText}>Cooked This</Text>
+          </TouchableOpacity>
+          
           <TouchableOpacity style={styles.cookButton} onPress={startCooking}>
             <ChefHat size={20} color="#FFFFFF" />
             <Text style={styles.cookButtonText}>Start Cooking</Text>
@@ -489,9 +511,33 @@ export default function RecipeDetailScreen() {
           ))}
         </View>
 
+        {/* Tried by Others Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tried by Others</Text>
+          <View style={styles.triedByOthers}>
+            <Text style={styles.comingSoonText}>Coming soon! See how others made this recipe.</Text>
+          </View>
+        </View>
+
         {/* Bottom padding to account for tab bar */}
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      {/* Cooked This Modal would go here */}
+      {showCookedForm && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Share Your Creation!</Text>
+            <Text style={styles.modalSubtitle}>Upload a photo and tell us how it turned out</Text>
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowCookedForm(false)}
+            >
+              <Text style={styles.modalCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -722,6 +768,21 @@ const styles = StyleSheet.create({
     color: '#4ECDC4',
     marginLeft: 8,
   },
+  cookedButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#6C5CE7',
+  },
+  cookedButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
   cookButton: {
     flex: 2,
     flexDirection: 'row',
@@ -792,6 +853,16 @@ const styles = StyleSheet.create({
     color: '#1E293B',
     flex: 1,
     lineHeight: 24,
+  },
+  triedByOthers: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  comingSoonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#94A3B8',
+    textAlign: 'center',
   },
 
   // Cook Mode Styles
@@ -1079,5 +1150,48 @@ const styles = StyleSheet.create({
   },
   navButtonTextDisabled: {
     color: '#94A3B8',
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    marginHorizontal: 32,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter-Bold',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  modalCloseButton: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  modalCloseText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
   },
 });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image, TextInput, Alert, RefreshControl } from 'react-native';
-import { Settings, Share, ChefHat, Users, BookOpen, Heart, LocationEdit as Edit, LogOut, X, Check } from 'lucide-react-native';
+import { Settings, Share, ChefHat, Users, BookOpen, Heart, LocationEdit as Edit, LogOut, X, Check, Folder, Camera } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRecipes } from '@/hooks/useRecipes';
 import { router } from 'expo-router';
@@ -25,6 +25,9 @@ export default function ProfileScreen() {
     toggleBookmark, 
     toggleLike 
   } = useRecipes();
+
+  // Mock tried recipes count
+  const triedRecipesCount = 15;
 
   const achievements = [
     { id: 1, title: 'First Recipe', description: 'Posted your first recipe', icon: '🍳', unlocked: profile?.recipes_count > 0 },
@@ -182,6 +185,36 @@ export default function ProfileScreen() {
           </ScrollView>
         );
 
+      case 'tried':
+        return (
+          <View style={styles.emptyTabContent}>
+            <Camera size={48} color="#94A3B8" />
+            <Text style={styles.emptyTabTitle}>No tried recipes yet</Text>
+            <Text style={styles.emptyTabText}>Recipes you've cooked will appear here</Text>
+            <TouchableOpacity 
+              style={styles.exploreButton}
+              onPress={() => router.push('/(tabs)/search')}
+            >
+              <Text style={styles.exploreButtonText}>Find Recipes to Try</Text>
+            </TouchableOpacity>
+          </View>
+        );
+
+      case 'collections':
+        return (
+          <View style={styles.emptyTabContent}>
+            <Folder size={48} color="#94A3B8" />
+            <Text style={styles.emptyTabTitle}>No collections yet</Text>
+            <Text style={styles.emptyTabText}>Create collections to organize your recipes</Text>
+            <TouchableOpacity 
+              style={styles.createButton}
+              onPress={() => router.push('/collections')}
+            >
+              <Text style={styles.createButtonText}>Create Collection</Text>
+            </TouchableOpacity>
+          </View>
+        );
+
       case 'following':
         return (
           <View style={styles.emptyTabContent}>
@@ -301,6 +334,10 @@ export default function ProfileScreen() {
               
               <View style={styles.stats}>
                 <View style={styles.stat}>
+                  <Text style={styles.statNumber}>{triedRecipesCount}</Text>
+                  <Text style={styles.statLabel}>Tried</Text>
+                </View>
+                <View style={styles.stat}>
                   <Text style={styles.statNumber}>{profile.recipes_count}</Text>
                   <Text style={styles.statLabel}>Recipes</Text>
                 </View>
@@ -347,6 +384,13 @@ export default function ProfileScreen() {
               </View>
             </View>
           </View>
+
+          <TouchableOpacity 
+            style={styles.updateProfileButton}
+            onPress={() => router.push('/onboarding/taste-profile')}
+          >
+            <Text style={styles.updateProfileText}>Update Taste Profile</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Achievements */}
@@ -383,7 +427,7 @@ export default function ProfileScreen() {
             >
               <BookOpen size={16} color={activeTab === 'recipes' ? '#FFFFFF' : '#64748B'} />
               <Text style={[styles.tabText, activeTab === 'recipes' && styles.activeTabText]}>
-                My Recipes
+                Recipes
               </Text>
             </TouchableOpacity>
             
@@ -398,12 +442,22 @@ export default function ProfileScreen() {
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.tab, activeTab === 'following' && styles.activeTab]}
-              onPress={() => setActiveTab('following')}
+              style={[styles.tab, activeTab === 'tried' && styles.activeTab]}
+              onPress={() => setActiveTab('tried')}
             >
-              <Users size={16} color={activeTab === 'following' ? '#FFFFFF' : '#64748B'} />
-              <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
-                Following
+              <Camera size={16} color={activeTab === 'tried' ? '#FFFFFF' : '#64748B'} />
+              <Text style={[styles.tabText, activeTab === 'tried' && styles.activeTabText]}>
+                Tried
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'collections' && styles.activeTab]}
+              onPress={() => setActiveTab('collections')}
+            >
+              <Folder size={16} color={activeTab === 'collections' ? '#FFFFFF' : '#64748B'} />
+              <Text style={[styles.tabText, activeTab === 'collections' && styles.activeTabText]}>
+                Collections
               </Text>
             </TouchableOpacity>
           </View>
@@ -427,16 +481,26 @@ export default function ProfileScreen() {
               <Text style={styles.quickActionText}>Create Recipe</Text>
             </TouchableOpacity>
             
+            <TouchableOpacity 
+              style={styles.quickAction}
+              onPress={() => router.push('/collections')}
+            >
+              <View style={styles.quickActionIcon}>
+                <Folder size={24} color="#4ECDC4" />
+              </View>
+              <Text style={styles.quickActionText}>Collections</Text>
+            </TouchableOpacity>
+            
             <TouchableOpacity style={styles.quickAction}>
               <View style={styles.quickActionIcon}>
-                <Users size={24} color="#4ECDC4" />
+                <Users size={24} color="#6C5CE7" />
               </View>
               <Text style={styles.quickActionText}>Find Friends</Text>
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.quickAction}>
               <View style={styles.quickActionIcon}>
-                <Settings size={24} color="#6C5CE7" />
+                <Settings size={24} color="#94A3B8" />
               </View>
               <Text style={styles.quickActionText}>Settings</Text>
             </TouchableOpacity>
@@ -613,7 +677,7 @@ const styles = StyleSheet.create({
   },
   stat: {
     alignItems: 'center',
-    marginHorizontal: 20,
+    marginHorizontal: 16,
   },
   statNumber: {
     fontSize: 20,
@@ -653,6 +717,7 @@ const styles = StyleSheet.create({
   },
   cookingInfo: {
     gap: 16,
+    marginBottom: 16,
   },
   infoItem: {
     flexDirection: 'row',
@@ -672,6 +737,18 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     color: '#1E293B',
     marginTop: 2,
+  },
+  updateProfileButton: {
+    backgroundColor: '#4ECDC4',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+  },
+  updateProfileText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
   },
   achievementsGrid: {
     flexDirection: 'row',
@@ -739,10 +816,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF6B35',
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: 'Inter-Medium',
     color: '#64748B',
-    marginLeft: 6,
+    marginLeft: 4,
   },
   activeTabText: {
     color: '#FFFFFF',
@@ -765,6 +842,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     marginBottom: 8,
+    marginTop: 16,
   },
   emptyTabText: {
     fontSize: 14,
