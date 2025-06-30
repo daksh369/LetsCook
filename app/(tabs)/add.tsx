@@ -110,6 +110,18 @@ export default function AddRecipeScreen() {
     }
   };
 
+  const handleTakePhoto = async () => {
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setImage(result.assets[0].uri);
+    }
+  };
+
   const handleSaveRecipe = async () => {
     setError('');
     
@@ -181,11 +193,8 @@ export default function AddRecipeScreen() {
             {
               text: 'OK',
               onPress: () => {
-                if (isEditing) {
-                  router.back();
-                } else {
-                  router.push('/(tabs)/recipes');
-                }
+                // Navigate back to the previous screen
+                router.back();
               }
             }
           ]

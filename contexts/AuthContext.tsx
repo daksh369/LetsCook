@@ -126,11 +126,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       console.log('🚪 Signing out user');
-      await firebaseSignOut(auth);
+      // Clear local state first
+      setUser(null);
       setProfile(null);
+      
+      // Then sign out from Firebase
+      await firebaseSignOut(auth);
       console.log('✅ User signed out successfully');
     } catch (error) {
       console.error('❌ Sign out error:', error);
+      // Even if Firebase signOut fails, we should clear local state
+      setUser(null);
+      setProfile(null);
+      throw error;
     }
   };
 

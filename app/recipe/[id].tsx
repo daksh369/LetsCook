@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image, Alert } from 'react-native';
-import { ArrowLeft, Clock, Users, Star, Bookmark, Heart, Share, ChefHat, Check, ChevronUp, ChevronDown, MessageSquare, Camera } from 'lucide-react-native';
+import { ArrowLeft, Clock, Users, Star, Bookmark, Heart, Share, ChefHat, Check, ChevronUp, ChevronDown, MessageSquare, Camera, Edit } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -64,6 +64,11 @@ export default function RecipeDetailScreen() {
     } else {
       router.push('/(tabs)');
     }
+  };
+
+  const handleEditRecipe = () => {
+    if (!recipe || !user || recipe.author_id !== user.uid) return;
+    router.push(`/(tabs)/add?edit=${recipe.id}`);
   };
 
   const handleLike = async () => {
@@ -196,6 +201,9 @@ export default function RecipeDetailScreen() {
       </SafeAreaView>
     );
   }
+
+  // Check if current user is the recipe author
+  const isAuthor = user && recipe.author_id === user.uid;
 
   // Ingredients Collection Mode
   if (cookMode && ingredientsMode) {
@@ -413,6 +421,12 @@ export default function RecipeDetailScreen() {
             <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
               <Share size={20} color="#FFFFFF" />
             </TouchableOpacity>
+            {/* Edit button for recipe author */}
+            {isAuthor && (
+              <TouchableOpacity style={styles.actionButton} onPress={handleEditRecipe}>
+                <Edit size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
           </View>
           <View style={styles.difficultyBadge}>
             <Text style={styles.difficultyText}>{recipe.difficulty}</Text>

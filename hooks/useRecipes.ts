@@ -404,7 +404,17 @@ export function useRecipes() {
       await updateDoc(doc(db, 'recipes', recipeId), updatedData);
       console.log('✅ Recipe updated successfully');
       
-      // Refresh all recipe lists
+      // Update local state immediately for better UX
+      const updateRecipeInState = (recipe: Recipe) => 
+        recipe.id === recipeId 
+          ? { ...recipe, ...updatedData }
+          : recipe;
+
+      setRecipes(prev => prev.map(updateRecipeInState));
+      setUserRecipes(prev => prev.map(updateRecipeInState));
+      setLikedRecipes(prev => prev.map(updateRecipeInState));
+      
+      // Also refresh all recipe lists to ensure consistency
       await Promise.all([fetchRecipes(), fetchUserRecipes(), fetchLikedRecipes()]);
       return { error: null };
     } catch (error) {
