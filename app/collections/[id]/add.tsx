@@ -8,7 +8,9 @@ import {
   getDocs, 
   query, 
   where, 
-  orderBy
+  orderBy,
+  getDoc,
+  doc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,6 +38,8 @@ export default function AddToCollectionScreen() {
 
   const loadCollectionRecipes = async () => {
     try {
+      console.log('📂 Loading existing collection recipes for collection:', id);
+      
       const collectionRecipesQuery = query(
         collection(db, 'collection_recipes'),
         where('collection_id', '==', id)
@@ -44,14 +48,17 @@ export default function AddToCollectionScreen() {
       const snapshot = await getDocs(collectionRecipesQuery);
       const recipeIds = snapshot.docs.map(doc => doc.data().recipe_id);
       setCollectionRecipes(recipeIds);
+      
+      console.log('📋 Found', recipeIds.length, 'recipes already in collection');
     } catch (error) {
-      console.error('Error loading collection recipes:', error);
+      console.error('❌ Error loading collection recipes:', error);
     }
   };
 
   const loadAvailableRecipes = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Loading available recipes for user:', user?.uid);
       
       // Get user's recipes and public recipes
       const userRecipesQuery = query(
@@ -71,8 +78,51 @@ export default function AddToCollectionScreen() {
         getDocs(publicRecipesQuery)
       ]);
       
-      const userRecipes = userSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Recipe[];
-      const publicRecipes = publicSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Recipe[];
+      const userRecipes = await Promise.all(
+        userSnapshot.docs.map(async (recipeDoc) => {
+          const recipeData = { id: recipeDoc.id, ...recipeDoc.data() } as Recipe;
+          
+          // Add author info for user's own recipes
+          if (user) {
+            const authorDoc = await getDoc(doc(db, 'profiles', user.uid));
+            if (authorDoc.exists()) {
+              const authorData = authorDoc.data();
+              recipeData.author = {
+                id: authorData.id,
+                name: authorData.name,
+                username: authorData.username,
+                avatar_url: authorData.avatar_url,
+              };
+            }
+          }
+          
+          return recipeData;
+        })
+      );
+      
+      const publicRecipes = await Promise.all(
+        publicSnapshot.docs.map(async (recipeDoc) => {
+          const recipeData = { id: recipeDoc.id, ...recipeDoc.data() } as Recipe;
+          
+          // Add author info for public recipes
+          try {
+            const authorDoc = await getDoc(doc(db, 'profiles', recipeData.author_id));
+            if (authorDoc.exists()) {
+              const authorData = authorDoc.data();
+              recipeData.author = {
+                id: authorData.id,
+                name: authorData.name,
+                username: authorData.username,
+                avatar_url: authorData.avatar_url,
+              };
+            }
+          } catch (error) {
+            console.error('Error fetching author for recipe:', recipeData.id, error);
+          }
+          
+          return recipeData;
+        })
+      );
       
       // Combine and deduplicate
       const allRecipes = [...userRecipes];
@@ -83,8 +133,9 @@ export default function AddToCollectionScreen() {
       });
       
       setAvailableRecipes(allRecipes);
+      console.log('✅ Loaded', allRecipes.length, 'available recipes');
     } catch (error) {
-      console.error('Error loading available recipes:', error);
+      console.error('❌ Error loading available recipes:', error);
       setAvailableRecipes([]);
     } finally {
       setLoading(false);
@@ -101,17 +152,20 @@ export default function AddToCollectionScreen() {
     setAdding(prev => [...prev, recipeId]);
 
     try {
+      console.log('➕ Adding recipe', recipeId, 'to collection', id);
+      
       await addDoc(collection(db, 'collection_recipes'), {
         collection_id: id,
         recipe_id: recipeId,
-        user_id: user.uid,
+        user_id: user.uid, // Important for Firestore security rules
         added_at: new Date().toISOString(),
       });
 
       setCollectionRecipes(prev => [...prev, recipeId]);
       Alert.alert('Success', 'Recipe added to collection!');
+      console.log('✅ Recipe added to collection successfully');
     } catch (error) {
-      console.error('Error adding recipe to collection:', error);
+      console.error('❌ Error adding recipe to collection:', error);
       Alert.alert('Error', 'Failed to add recipe to collection');
     } finally {
       setAdding(prev => prev.filter(id => id !== recipeId));

@@ -7,7 +7,6 @@ import {
   addDoc, 
   getDocs, 
   doc, 
-  updateDoc, 
   deleteDoc, 
   query, 
   where, 
@@ -43,10 +42,14 @@ export default function CollectionsScreen() {
   }, [user]);
 
   const loadCollections = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
+      console.log('📂 Loading collections for user:', user.uid);
       
       const collectionsQuery = query(
         collection(db, 'collections'),
@@ -55,25 +58,33 @@ export default function CollectionsScreen() {
       );
       
       const collectionsSnapshot = await getDocs(collectionsQuery);
+      console.log('📊 Found', collectionsSnapshot.docs.length, 'collections');
+      
       const collectionsData = await Promise.all(
         collectionsSnapshot.docs.map(async (collectionDoc) => {
           const collectionData = { id: collectionDoc.id, ...collectionDoc.data() };
           
           // Count recipes in this collection
-          const recipesQuery = query(
-            collection(db, 'collection_recipes'),
-            where('collection_id', '==', collectionDoc.id)
-          );
-          const recipesSnapshot = await getDocs(recipesQuery);
-          collectionData.recipe_count = recipesSnapshot.docs.length;
+          try {
+            const recipesQuery = query(
+              collection(db, 'collection_recipes'),
+              where('collection_id', '==', collectionDoc.id)
+            );
+            const recipesSnapshot = await getDocs(recipesQuery);
+            collectionData.recipe_count = recipesSnapshot.docs.length;
+          } catch (error) {
+            console.error('Error counting recipes for collection:', collectionDoc.id, error);
+            collectionData.recipe_count = 0;
+          }
           
           return collectionData as Collection;
         })
       );
       
       setCollections(collectionsData);
+      console.log('✅ Collections loaded successfully');
     } catch (error) {
-      console.error('Error loading collections:', error);
+      console.error('❌ Error loading collections:', error);
       setCollections([]);
     } finally {
       setLoading(false);
@@ -98,15 +109,19 @@ export default function CollectionsScreen() {
     setCreating(true);
 
     try {
+      console.log('🆕 Creating new collection for user:', user.uid);
+      
       const collectionData = {
-        user_id: user.uid,
+        user_id: user.uid, // This is crucial for Firestore security rules
         name: newCollectionName.trim(),
         description: newCollectionDescription.trim(),
         is_default: false,
         created_at: new Date().toISOString(),
       };
 
+      console.log('📝 Collection data:', collectionData);
       const docRef = await addDoc(collection(db, 'collections'), collectionData);
+      console.log('✅ Collection created with ID:', docRef.id);
       
       const newCollection: Collection = {
         id: docRef.id,
@@ -121,7 +136,7 @@ export default function CollectionsScreen() {
       
       Alert.alert('Success', 'Collection created successfully!');
     } catch (error) {
-      console.error('Error creating collection:', error);
+      console.error('❌ Error creating collection:', error);
       Alert.alert('Error', 'Failed to create collection. Please try again.');
     } finally {
       setCreating(false);
@@ -146,11 +161,29 @@ export default function CollectionsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('🗑️ Deleting collection:', collectionId);
+              
+              // First delete all recipes in this collection
+              const recipesQuery = query(
+                collection(db, 'collection_recipes'),
+                where('collection_id', '==', collectionId)
+              );
+              const recipesSnapshot = await getDocs(recipesQuery);
+              
+              await Promise.all(
+                recipesSnapshot.docs.map(recipeDoc => 
+                  deleteDoc(doc(db, 'collection_recipes', recipeDoc.id))
+                )
+              );
+              
+              // Then delete the collection itself
               await deleteDoc(doc(db, 'collections', collectionId));
+              
               setCollections(prev => prev.filter(c => c.id !== collectionId));
               Alert.alert('Success', 'Collection deleted successfully');
+              console.log('✅ Collection deleted successfully');
             } catch (error) {
-              console.error('Error deleting collection:', error);
+              console.error('❌ Error deleting collection:', error);
               Alert.alert('Error', 'Failed to delete collection');
             }
           }
@@ -291,7 +324,10 @@ export default function CollectionsScreen() {
                   {!collection.is_default && (
                     <TouchableOpacity 
                       style={styles.deleteButton}
-                      onPress={() => handleDeleteCollection(collection.id)}
+                      onPress={(e) => {
+                        e.stopPropagation(); // Prevent navigation when deleting
+                        handleDeleteCollection(collection.id);
+                      }}
                     >
                       <X size={16} color="#EF4444" />
                     </TouchableOpacity>
