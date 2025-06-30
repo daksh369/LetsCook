@@ -77,12 +77,20 @@ export default function ProfileScreen() {
           text: 'Sign Out', 
           style: 'destructive',
           onPress: async () => {
-            await signOut();
-            router.replace('/(auth)/login');
+            try {
+              await signOut();
+              router.replace('/(auth)/login');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
           }
         }
       ]
     );
+  };
+
+  const handleSettings = () => {
+    router.push('/(tabs)/settings');
   };
 
   const handleRecipePress = (recipeId: string) => {
@@ -252,7 +260,7 @@ export default function ProfileScreen() {
           <TouchableOpacity style={styles.iconButton}>
             <Share size={24} color="#64748B" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
+          <TouchableOpacity style={styles.iconButton} onPress={handleSettings}>
             <Settings size={24} color="#64748B" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={handleSignOut}>
@@ -498,7 +506,7 @@ export default function ProfileScreen() {
               <Text style={styles.quickActionText}>Find Friends</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.quickAction}>
+            <TouchableOpacity style={styles.quickAction} onPress={handleSettings}>
               <View style={styles.quickActionIcon}>
                 <Settings size={24} color="#94A3B8" />
               </View>
