@@ -18,3 +18,12 @@
     at <anonymous> (https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3-zy9pua4g.w-credentialless-staticblitz.com/blitz.cb7c0bca.js:31:29505)
 [error] 
 [error] Error: An unexpected error has occurred.
+[debug] [2025-06-30T05:16:08.025Z] ----------------------------------------------------------------------
+[debug] [2025-06-30T05:16:08.025Z] Command:       /usr/local/bin/node /home/project/node_modules/.bin/firebase login
+[debug] [2025-06-30T05:16:08.026Z] CLI Version:   14.9.0
+[debug] [2025-06-30T05:16:08.026Z] Platform:      linux
+[debug] [2025-06-30T05:16:08.026Z] Node Version:  v20.19.1
+[debug] [2025-06-30T05:16:08.026Z] Time:          Sun Jun 29 2025 23:16:08 GMT-0600 (Mountain Daylight Time)
+[debug] [2025-06-30T05:16:08.026Z] ----------------------------------------------------------------------
+[debug] 
+[info] i  The Firebase CLI’s MCP server feature can optionally make use of Gemini in Firebase. Learn more about Gemini in Firebase and how it uses your data: https://firebase.google.com/docs/gemini-in-firebase#how-gemini-in-firebase-uses-your-data 
