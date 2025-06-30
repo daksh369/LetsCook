@@ -23,6 +23,7 @@
     "expo-image-picker": "^16.1.5-canary-20250613-b29d676",
     "expo-linking": "7.1.6-canary-20250613-b29d676",
     "expo-router": "5.2.0-canary-20250613-b29d676",
+    "expo-sharing": "^13.1.5",
     "expo-splash-screen": "0.30.10-canary-20250613-b29d676",
     "expo-status-bar": "2.2.4-canary-20250613-b29d676",
     "expo-system-ui": "5.0.9-canary-20250613-b29d676",
