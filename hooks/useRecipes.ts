@@ -46,8 +46,10 @@ export interface Recipe {
 export function useRecipes() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [userRecipes, setUserRecipes] = useState<Recipe[]>([]);
+  const [likedRecipes, setLikedRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRecipesLoading, setUserRecipesLoading] = useState(true);
+  const [likedRecipesLoading, setLikedRecipesLoading] = useState(true);
   const { user, profile } = useAuth();
 
   const fetchRecipes = async () => {
@@ -245,6 +247,89 @@ export function useRecipes() {
     }
   };
 
+  const fetchLikedRecipes = async () => {
+    console.log('❤️ fetchLikedRecipes called');
+    
+    if (!user) {
+      console.log('❌ No user found, clearing liked recipes');
+      setLikedRecipes([]);
+      setLikedRecipesLoading(false);
+      return;
+    }
+
+    try {
+      setLikedRecipesLoading(true);
+      console.log('🚀 Starting to fetch liked recipes for:', user.uid);
+      
+      // Fetch user's liked recipes
+      const likesQuery = query(
+        collection(db, 'recipe_likes'),
+        where('user_id', '==', user.uid),
+        orderBy('created_at', 'desc')
+      );
+      
+      const likesSnapshot = await getDocs(likesQuery);
+      console.log('❤️ Found', likesSnapshot.docs.length, 'liked recipes');
+      
+      // Get recipe IDs from likes
+      const likedRecipeIds = likesSnapshot.docs.map(doc => doc.data().recipe_id);
+      
+      if (likedRecipeIds.length === 0) {
+        setLikedRecipes([]);
+        setLikedRecipesLoading(false);
+        return;
+      }
+
+      // Fetch the actual recipes
+      const likedRecipesData: Recipe[] = [];
+      
+      for (const recipeId of likedRecipeIds) {
+        try {
+          const recipeDoc = await getDoc(doc(db, 'recipes', recipeId));
+          if (recipeDoc.exists()) {
+            const recipeData = { id: recipeDoc.id, ...recipeDoc.data() } as Recipe;
+            
+            // Fetch author profile
+            const authorDoc = await getDoc(doc(db, 'profiles', recipeData.author_id));
+            if (authorDoc.exists()) {
+              const authorData = authorDoc.data();
+              recipeData.author = {
+                id: authorData.id,
+                name: authorData.name,
+                username: authorData.username,
+                avatar_url: authorData.avatar_url,
+              };
+            }
+            
+            // Mark as liked and check if bookmarked
+            const bookmarkQuery = query(
+              collection(db, 'recipe_bookmarks'),
+              where('user_id', '==', user.uid),
+              where('recipe_id', '==', recipeData.id)
+            );
+            const bookmarkSnapshot = await getDocs(bookmarkQuery);
+            
+            recipeData.isLiked = true;
+            recipeData.isBookmarked = !bookmarkSnapshot.empty;
+            
+            likedRecipesData.push(recipeData);
+          }
+        } catch (error) {
+          console.error('Error fetching liked recipe:', recipeId, error);
+        }
+      }
+
+      console.log('❤️ Final liked recipes:', likedRecipesData.length);
+      setLikedRecipes(likedRecipesData);
+    } catch (error) {
+      console.error('💥 Error fetching liked recipes:', error);
+      setLikedRecipes([]);
+    } finally {
+      setLikedRecipesLoading(false);
+      console.log('✅ fetchLikedRecipes completed');
+    }
+  };
+
   const createRecipe = async (recipeData: {
     title: string;
     description: string;
@@ -286,12 +371,91 @@ export function useRecipes() {
         console.log('📊 Updated user recipe count to:', currentCount + 1);
       }
 
-      // Refresh both recipe lists
+      // Refresh all recipe lists
       await Promise.all([fetchRecipes(), fetchUserRecipes()]);
       return { data: { id: docRef.id, ...recipe }, error: null };
     } catch (error) {
       console.error('Error creating recipe:', error);
       return { error };
+    }
+  };
+
+  const updateRecipe = async (recipeId: string, recipeData: {
+    title: string;
+    description: string;
+    image_url?: string;
+    cook_time: number;
+    servings: number;
+    difficulty: 'Easy' | 'Medium' | 'Hard';
+    ingredients: string[];
+    instructions: string[];
+    tags: string[];
+    dietary_info: string[];
+  }) => {
+    if (!user) return { error: new Error('User not authenticated') };
+
+    try {
+      const updatedData = {
+        ...recipeData,
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log('✏️ Updating recipe:', recipeId);
+      await updateDoc(doc(db, 'recipes', recipeId), updatedData);
+      console.log('✅ Recipe updated successfully');
+      
+      // Refresh all recipe lists
+      await Promise.all([fetchRecipes(), fetchUserRecipes(), fetchLikedRecipes()]);
+      return { error: null };
+    } catch (error) {
+      console.error('Error updating recipe:', error);
+      return { error };
+    }
+  };
+
+  const getRecipeById = async (recipeId: string): Promise<Recipe | null> => {
+    try {
+      const recipeDoc = await getDoc(doc(db, 'recipes', recipeId));
+      if (recipeDoc.exists()) {
+        const recipeData = { id: recipeDoc.id, ...recipeDoc.data() } as Recipe;
+        
+        // Fetch author profile
+        const authorDoc = await getDoc(doc(db, 'profiles', recipeData.author_id));
+        if (authorDoc.exists()) {
+          const authorData = authorDoc.data();
+          recipeData.author = {
+            id: authorData.id,
+            name: authorData.name,
+            username: authorData.username,
+            avatar_url: authorData.avatar_url,
+          };
+        }
+        
+        // Check interactions if user is logged in
+        if (user) {
+          const bookmarkQuery = query(
+            collection(db, 'recipe_bookmarks'),
+            where('user_id', '==', user.uid),
+            where('recipe_id', '==', recipeData.id)
+          );
+          const bookmarkSnapshot = await getDocs(bookmarkQuery);
+          recipeData.isBookmarked = !bookmarkSnapshot.empty;
+
+          const likeQuery = query(
+            collection(db, 'recipe_likes'),
+            where('user_id', '==', user.uid),
+            where('recipe_id', '==', recipeData.id)
+          );
+          const likeSnapshot = await getDocs(likeQuery);
+          recipeData.isLiked = !likeSnapshot.empty;
+        }
+        
+        return recipeData;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching recipe by ID:', error);
+      return null;
     }
   };
 
@@ -320,7 +484,7 @@ export function useRecipes() {
         await deleteDoc(doc(db, 'recipe_bookmarks', bookmarkDoc.id));
       }
 
-      // Update local state for both recipe lists
+      // Update local state for all recipe lists
       const updateBookmarkState = (recipe: Recipe) => 
         recipe.id === recipeId 
           ? { ...recipe, isBookmarked: !recipe.isBookmarked }
@@ -328,6 +492,7 @@ export function useRecipes() {
 
       setRecipes(prev => prev.map(updateBookmarkState));
       setUserRecipes(prev => prev.map(updateBookmarkState));
+      setLikedRecipes(prev => prev.map(updateBookmarkState));
     } catch (error) {
       console.error('Error toggling bookmark:', error);
     }
@@ -344,6 +509,7 @@ export function useRecipes() {
       );
       
       const likeSnapshot = await getDocs(likeQuery);
+      const wasLiked = !likeSnapshot.empty;
       
       if (likeSnapshot.empty) {
         // Add like
@@ -352,13 +518,15 @@ export function useRecipes() {
           recipe_id: recipeId,
           created_at: new Date().toISOString(),
         });
+        console.log('❤️ Added like for recipe:', recipeId);
       } else {
         // Remove like
         const likeDoc = likeSnapshot.docs[0];
         await deleteDoc(doc(db, 'recipe_likes', likeDoc.id));
+        console.log('💔 Removed like for recipe:', recipeId);
       }
 
-      // Update local state for both recipe lists
+      // Update local state for all recipe lists
       const updateLikeState = (recipe: Recipe) => 
         recipe.id === recipeId 
           ? { ...recipe, isLiked: !recipe.isLiked }
@@ -366,6 +534,14 @@ export function useRecipes() {
 
       setRecipes(prev => prev.map(updateLikeState));
       setUserRecipes(prev => prev.map(updateLikeState));
+      
+      // If recipe was unliked, remove it from liked recipes list
+      if (wasLiked) {
+        setLikedRecipes(prev => prev.filter(recipe => recipe.id !== recipeId));
+      } else {
+        // If recipe was liked, refresh liked recipes to include it
+        fetchLikedRecipes();
+      }
     } catch (error) {
       console.error('Error toggling like:', error);
     }
@@ -399,21 +575,29 @@ export function useRecipes() {
     if (user) {
       console.log('🔄 User or profile changed, fetching user recipes...');
       fetchUserRecipes();
+      fetchLikedRecipes();
     } else {
       console.log('🚫 No user, clearing user recipes');
       setUserRecipes([]);
+      setLikedRecipes([]);
       setUserRecipesLoading(false);
+      setLikedRecipesLoading(false);
     }
   }, [user, profile]);
 
   return {
     recipes,
     userRecipes,
+    likedRecipes,
     loading,
     userRecipesLoading,
+    likedRecipesLoading,
     fetchRecipes,
     fetchUserRecipes,
+    fetchLikedRecipes,
     createRecipe,
+    updateRecipe,
+    getRecipeById,
     toggleBookmark,
     toggleLike,
     uploadImage,

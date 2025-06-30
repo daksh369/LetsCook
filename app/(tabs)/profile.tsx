@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image, TextInput, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image, TextInput, Alert, RefreshControl } from 'react-native';
 import { Settings, Share, ChefHat, Users, BookOpen, Heart, LocationEdit as Edit, LogOut, X, Check } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRecipes } from '@/hooks/useRecipes';
 import { router } from 'expo-router';
+import RecipeCard from '@/components/RecipeCard';
 
 export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState('recipes');
@@ -10,8 +12,19 @@ export default function ProfileScreen() {
   const [editedName, setEditedName] = useState('');
   const [editedBio, setEditedBio] = useState('');
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { profile, signOut, updateProfile } = useAuth();
+  const { 
+    userRecipes, 
+    likedRecipes, 
+    userRecipesLoading, 
+    likedRecipesLoading,
+    fetchUserRecipes,
+    fetchLikedRecipes,
+    toggleBookmark, 
+    toggleLike 
+  } = useRecipes();
 
   const achievements = [
     { id: 1, title: 'First Recipe', description: 'Posted your first recipe', icon: '🍳', unlocked: profile?.recipes_count > 0 },
@@ -67,6 +80,125 @@ export default function ProfileScreen() {
         }
       ]
     );
+  };
+
+  const handleRecipePress = (recipeId: string) => {
+    router.push(`/recipe/${recipeId}`);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    if (activeTab === 'recipes') {
+      await fetchUserRecipes();
+    } else if (activeTab === 'liked') {
+      await fetchLikedRecipes();
+    }
+    setRefreshing(false);
+  };
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'recipes':
+        if (userRecipesLoading) {
+          return (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading your recipes...</Text>
+            </View>
+          );
+        }
+        
+        if (userRecipes.length === 0) {
+          return (
+            <View style={styles.emptyTabContent}>
+              <Text style={styles.emptyTabTitle}>No recipes yet</Text>
+              <Text style={styles.emptyTabText}>Start creating recipes to see them here</Text>
+              <TouchableOpacity 
+                style={styles.createButton}
+                onPress={() => router.push('/(tabs)/add')}
+              >
+                <Text style={styles.createButtonText}>Create Your First Recipe</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+
+        return (
+          <ScrollView 
+            style={styles.tabScrollContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            showsVerticalScrollIndicator={false}
+          >
+            {userRecipes.map((recipe) => (
+              <RecipeCard
+                key={recipe.id}
+                recipe={recipe}
+                onPress={() => handleRecipePress(recipe.id)}
+                onBookmark={() => toggleBookmark(recipe.id)}
+                onLike={() => toggleLike(recipe.id)}
+              />
+            ))}
+          </ScrollView>
+        );
+
+      case 'liked':
+        if (likedRecipesLoading) {
+          return (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading liked recipes...</Text>
+            </View>
+          );
+        }
+        
+        if (likedRecipes.length === 0) {
+          return (
+            <View style={styles.emptyTabContent}>
+              <Text style={styles.emptyTabTitle}>No liked recipes</Text>
+              <Text style={styles.emptyTabText}>Recipes you like will appear here</Text>
+              <TouchableOpacity 
+                style={styles.exploreButton}
+                onPress={() => router.push('/(tabs)/search')}
+              >
+                <Text style={styles.exploreButtonText}>Explore Recipes</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+
+        return (
+          <ScrollView 
+            style={styles.tabScrollContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            showsVerticalScrollIndicator={false}
+          >
+            {likedRecipes.map((recipe) => (
+              <RecipeCard
+                key={recipe.id}
+                recipe={recipe}
+                onPress={() => handleRecipePress(recipe.id)}
+                onBookmark={() => toggleBookmark(recipe.id)}
+                onLike={() => toggleLike(recipe.id)}
+              />
+            ))}
+          </ScrollView>
+        );
+
+      case 'following':
+        return (
+          <View style={styles.emptyTabContent}>
+            <Text style={styles.emptyTabTitle}>No following yet</Text>
+            <Text style={styles.emptyTabText}>Chefs you follow will appear here</Text>
+            <TouchableOpacity 
+              style={styles.exploreButton}
+              onPress={() => router.push('/(tabs)/search')}
+            >
+              <Text style={styles.exploreButtonText}>Find Chefs</Text>
+            </TouchableOpacity>
+          </View>
+        );
+
+      default:
+        return null;
+    }
   };
 
   if (!profile) {
@@ -276,12 +408,8 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.tabContent}>
-            <Text style={styles.tabContentText}>
-              {activeTab === 'recipes' && 'Your created recipes will appear here'}
-              {activeTab === 'liked' && 'Recipes you\'ve liked will appear here'}
-              {activeTab === 'following' && 'Chefs you follow will appear here'}
-            </Text>
+          <View style={styles.tabContentContainer}>
+            {renderTabContent()}
           </View>
         </View>
 
@@ -314,6 +442,9 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Bottom padding to account for tab bar */}
+        <View style={styles.bottomPadding} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -328,6 +459,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 32,
   },
   loadingText: {
     fontSize: 16,
@@ -358,6 +490,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  bottomPadding: {
+    height: 80, // Account for tab bar
   },
   profileSection: {
     backgroundColor: '#FFFFFF',
@@ -612,15 +747,53 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: '#FFFFFF',
   },
-  tabContent: {
-    alignItems: 'center',
-    paddingVertical: 32,
+  tabContentContainer: {
+    minHeight: 200,
   },
-  tabContentText: {
+  tabScrollContent: {
+    flex: 1,
+  },
+  emptyTabContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 32,
+  },
+  emptyTabTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptyTabText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: '#94A3B8',
     textAlign: 'center',
+    marginBottom: 24,
+  },
+  createButton: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  createButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
+  },
+  exploreButton: {
+    backgroundColor: '#4ECDC4',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  exploreButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
   },
   quickActions: {
     flexDirection: 'row',

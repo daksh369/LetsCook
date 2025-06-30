@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
-import { Camera, Plus, X, Clock, Users, ChefHat } from 'lucide-react-native';
-import { router } from 'expo-router';
+import { Camera, Plus, X, Clock, Users, ChefHat, ArrowLeft } from 'lucide-react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useRecipes } from '@/hooks/useRecipes';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function AddRecipeScreen() {
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const isEditing = !!edit;
+  
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [cookTime, setCookTime] = useState('');
@@ -16,12 +19,47 @@ export default function AddRecipeScreen() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [image, setImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { createRecipe, uploadImage } = useRecipes();
+  const { createRecipe, updateRecipe, uploadImage, getRecipeById } = useRecipes();
 
   const difficultyOptions: ('Easy' | 'Medium' | 'Hard')[] = ['Easy', 'Medium', 'Hard'];
   const availableTags = ['Vegetarian', 'Vegan', 'Gluten-free', 'Keto', 'Low-carb', 'Healthy', 'Quick', 'Comfort Food'];
+
+  // Load recipe data if editing
+  useEffect(() => {
+    if (isEditing && edit) {
+      loadRecipeForEditing(edit);
+    }
+  }, [isEditing, edit]);
+
+  const loadRecipeForEditing = async (recipeId: string) => {
+    setLoading(true);
+    try {
+      const recipe = await getRecipeById(recipeId);
+      if (recipe) {
+        setTitle(recipe.title);
+        setDescription(recipe.description);
+        setCookTime(recipe.cook_time.toString());
+        setServings(recipe.servings.toString());
+        setDifficulty(recipe.difficulty);
+        setIngredients(recipe.ingredients.length > 0 ? recipe.ingredients : ['']);
+        setInstructions(recipe.instructions.length > 0 ? recipe.instructions : ['']);
+        setSelectedTags(recipe.tags);
+        setImage(recipe.image_url || null);
+      } else {
+        Alert.alert('Error', 'Recipe not found');
+        router.back();
+      }
+    } catch (error) {
+      console.error('Error loading recipe for editing:', error);
+      Alert.alert('Error', 'Failed to load recipe');
+      router.back();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const addIngredient = () => {
     setIngredients([...ingredients, '']);
@@ -91,8 +129,10 @@ export default function AddRecipeScreen() {
     setSaving(true);
 
     try {
-      let imageUrl = undefined;
-      if (image) {
+      let imageUrl = image;
+      
+      // Only upload new image if it's a local URI (not already uploaded)
+      if (image && image.startsWith('file://')) {
         imageUrl = await uploadImage(image);
       }
 
@@ -111,41 +151,81 @@ export default function AddRecipeScreen() {
         ),
       };
 
-      const { error } = await createRecipe(recipeData);
-
-      if (error) {
-        setError('Failed to save recipe. Please try again.');
+      let result;
+      if (isEditing && edit) {
+        result = await updateRecipe(edit, recipeData);
       } else {
-        // Reset form
-        setTitle('');
-        setDescription('');
-        setCookTime('');
-        setServings('');
-        setDifficulty('Easy');
-        setIngredients(['']);
-        setInstructions(['']);
-        setSelectedTags([]);
-        setImage(null);
-        router.push('/(tabs)/recipes');
+        result = await createRecipe(recipeData);
+      }
+
+      if (result.error) {
+        setError(`Failed to ${isEditing ? 'update' : 'save'} recipe. Please try again.`);
+      } else {
+        // Reset form only if creating new recipe
+        if (!isEditing) {
+          setTitle('');
+          setDescription('');
+          setCookTime('');
+          setServings('');
+          setDifficulty('Easy');
+          setIngredients(['']);
+          setInstructions(['']);
+          setSelectedTags([]);
+          setImage(null);
+        }
+        
+        Alert.alert(
+          'Success',
+          `Recipe ${isEditing ? 'updated' : 'created'} successfully!`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (isEditing) {
+                  router.back();
+                } else {
+                  router.push('/(tabs)/recipes');
+                }
+              }
+            }
+          ]
+        );
       }
     } catch (error) {
-      setError('Failed to save recipe. Please try again.');
+      setError(`Failed to ${isEditing ? 'update' : 'save'} recipe. Please try again.`);
     }
 
     setSaving(false);
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading recipe...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Create Recipe</Text>
+        {isEditing && (
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <ArrowLeft size={20} color="#64748B" />
+          </TouchableOpacity>
+        )}
+        <Text style={styles.title}>
+          {isEditing ? 'Edit Recipe' : 'Create Recipe'}
+        </Text>
         <TouchableOpacity 
           style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
           onPress={handleSaveRecipe}
           disabled={saving}
         >
           <Text style={styles.saveButtonText}>
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? 'Saving...' : isEditing ? 'Update' : 'Save'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -344,6 +424,9 @@ export default function AddRecipeScreen() {
             ))}
           </View>
         </View>
+
+        {/* Bottom padding to account for tab bar */}
+        <View style={styles.bottomPadding} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -353,6 +436,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    color: '#64748B',
   },
   header: {
     flexDirection: 'row',
@@ -364,10 +457,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
+  },
   title: {
     fontSize: 20,
     fontFamily: 'Inter-Bold',
     color: '#1E293B',
+    flex: 1,
   },
   saveButton: {
     backgroundColor: '#FF6B35',
@@ -400,6 +498,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  bottomPadding: {
+    height: 80, // Account for tab bar
   },
   section: {
     backgroundColor: '#FFFFFF',
