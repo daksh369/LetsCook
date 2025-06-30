@@ -22,6 +22,14 @@ export default function HomeScreen() {
     router.push(`/recipe/${recipeId}`);
   };
 
+  const handleNotifications = () => {
+    router.push('/(tabs)/notifications');
+  };
+
+  const handleSettings = () => {
+    router.push('/(tabs)/settings');
+  };
+
   const getFilteredRecipes = () => {
     switch (activeTab) {
       case 'feed':
@@ -58,10 +66,10 @@ export default function HomeScreen() {
           <Text style={styles.userName}>{profile.name}!</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.iconButton}>
+          <TouchableOpacity style={styles.iconButton} onPress={handleNotifications}>
             <Bell size={24} color="#64748B" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
+          <TouchableOpacity style={styles.iconButton} onPress={handleSettings}>
             <Settings size={24} color="#64748B" />
           </TouchableOpacity>
         </View>
@@ -138,6 +146,9 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
+
+        {/* Bottom padding to account for tab bar */}
+        <View style={styles.bottomPadding} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -254,5 +265,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
     color: '#FFFFFF',
+  },
+  bottomPadding: {
+    height: 80, // Account for tab bar
   },
 });

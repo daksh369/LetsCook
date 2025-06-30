@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image } from 'react-native';
-import { ArrowLeft, Clock, Users, Star, Bookmark, Heart, Share, ChefHat, Check, ChevronUp, ChevronDown } from 'lucide-react-native';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Image, Alert } from 'react-native';
+import { ArrowLeft, Clock, Users, Star, Bookmark, Heart, Share, ChefHat, Check, ChevronUp, ChevronDown, MessageSquare } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Recipe, useRecipes } from '@/hooks/useRecipes';
+import * as Sharing from 'expo-sharing';
 
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -16,7 +17,7 @@ export default function RecipeDetailScreen() {
   const [checkedIngredients, setCheckedIngredients] = useState<boolean[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const { user } = useAuth();
-  const { toggleLike } = useRecipes();
+  const { toggleLike, toggleBookmark } = useRecipes();
 
   useEffect(() => {
     if (id) {
@@ -63,6 +64,41 @@ export default function RecipeDetailScreen() {
     
     // Update in database
     await toggleLike(recipe.id);
+  };
+
+  const handleBookmark = async () => {
+    if (!recipe || !user) return;
+    
+    // Optimistically update UI
+    setRecipe(prev => prev ? { ...prev, isBookmarked: !prev.isBookmarked } : null);
+    
+    // Update in database
+    await toggleBookmark(recipe.id);
+  };
+
+  const handleShare = async () => {
+    if (!recipe) return;
+    
+    try {
+      const shareUrl = `https://letscook.app/recipe/${recipe.id}`;
+      const message = `Check out this amazing recipe: ${recipe.title} by ${recipe.author?.name}\n\n${shareUrl}`;
+
+      if (await Sharing.isAvailableAsync()) {
+        // For mobile platforms, use native sharing
+        router.push(`/share/${recipe.id}`);
+      } else {
+        // For web, copy to clipboard
+        Alert.alert('Share Recipe', message);
+      }
+    } catch (error) {
+      console.error('Error sharing recipe:', error);
+      Alert.alert('Error', 'Failed to share recipe');
+    }
+  };
+
+  const handleViewReviews = () => {
+    if (!recipe) return;
+    router.push(`/reviews/${recipe.id}`);
   };
 
   const toggleIngredient = (index: number) => {
@@ -331,10 +367,14 @@ export default function RecipeDetailScreen() {
             <ArrowLeft size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.imageActions}>
-            <TouchableOpacity style={styles.actionButton}>
-              <Bookmark size={20} color="#FFFFFF" />
+            <TouchableOpacity style={styles.actionButton} onPress={handleBookmark}>
+              <Bookmark 
+                size={20} 
+                color={recipe.isBookmarked ? "#FF6B35" : "#FFFFFF"}
+                fill={recipe.isBookmarked ? "#FF6B35" : "transparent"}
+              />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
               <Share size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -372,11 +412,11 @@ export default function RecipeDetailScreen() {
               <Users size={20} color="#64748B" />
               <Text style={styles.metadataText}>{recipe.servings} servings</Text>
             </View>
-            <View style={styles.metadataItem}>
+            <TouchableOpacity style={styles.metadataItem} onPress={handleViewReviews}>
               <Star size={20} color="#FFB800" fill="#FFB800" />
               <Text style={styles.metadataText}>{recipe.rating}</Text>
               <Text style={styles.reviewCount}>({recipe.reviews_count})</Text>
-            </View>
+            </TouchableOpacity>
             <View style={styles.metadataItem}>
               <ChefHat size={20} color="#FF6B35" />
               <Text style={styles.metadataText}>{recipe.difficulty}</Text>
@@ -413,6 +453,12 @@ export default function RecipeDetailScreen() {
               {recipe.isLiked ? 'Liked' : 'Like'}
             </Text>
           </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.reviewsButton} onPress={handleViewReviews}>
+            <MessageSquare size={20} color="#4ECDC4" />
+            <Text style={styles.reviewsButtonText}>Reviews</Text>
+          </TouchableOpacity>
+          
           <TouchableOpacity style={styles.cookButton} onPress={startCooking}>
             <ChefHat size={20} color="#FFFFFF" />
             <Text style={styles.cookButtonText}>Start Cooking</Text>
@@ -634,6 +680,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: '#FFFFFF',
     marginBottom: 8,
+    gap: 8,
   },
   likeButton: {
     flex: 1,
@@ -644,20 +691,36 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 2,
     borderColor: '#FF6B35',
-    marginRight: 8,
     backgroundColor: '#FFFFFF',
   },
   likeButtonActive: {
     backgroundColor: '#FF6B35',
   },
   likeButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'Inter-SemiBold',
     color: '#FF6B35',
     marginLeft: 8,
   },
   likeButtonTextActive: {
     color: '#FFFFFF',
+  },
+  reviewsButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#4ECDC4',
+    backgroundColor: '#FFFFFF',
+  },
+  reviewsButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: '#4ECDC4',
+    marginLeft: 8,
   },
   cookButton: {
     flex: 2,
@@ -667,7 +730,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     backgroundColor: '#FF6B35',
-    marginLeft: 8,
   },
   cookButtonText: {
     fontSize: 16,

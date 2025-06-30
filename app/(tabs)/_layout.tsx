@@ -27,7 +27,7 @@ export default function TabLayout() {
           paddingTop: 5,
           paddingBottom: 5,
           height: 60,
-          position: 'absolute', // Keep tabs visible over all screens
+          position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
@@ -83,6 +83,18 @@ export default function TabLayout() {
           tabBarIcon: ({ size, color }) => (
             <User size={size} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          href: null, // Hide from tab bar
         }}
       />
     </Tabs>
