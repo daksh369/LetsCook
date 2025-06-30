@@ -2,11 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, RefreshControl } from 'react-native';
 import { ArrowLeft, Plus, Folder } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { 
+  collection, 
+  getDocs, 
+  doc, 
+  getDoc, 
+  query, 
+  where, 
+  orderBy
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import RecipeCard from '@/components/RecipeCard';
 import { useRecipes, Recipe } from '@/hooks/useRecipes';
 
 interface Collection {
   id: string;
+  user_id: string;
   name: string;
   description: string;
   recipe_count: number;
@@ -23,92 +34,6 @@ export default function CollectionDetailScreen() {
 
   const { toggleBookmark, toggleLike } = useRecipes();
 
-  // Mock collections data
-  const mockCollections: Collection[] = [
-    {
-      id: '1',
-      name: 'Favorites',
-      description: 'My all-time favorite recipes',
-      recipe_count: 12,
-      created_at: '2024-01-01',
-      is_default: true,
-    },
-    {
-      id: '2',
-      name: 'To Try Next Week',
-      description: 'Recipes I want to cook soon',
-      recipe_count: 8,
-      created_at: '2024-01-15',
-      is_default: false,
-    },
-    {
-      id: '3',
-      name: 'Festive Dishes',
-      description: 'Special occasion recipes',
-      recipe_count: 15,
-      created_at: '2024-01-10',
-      is_default: false,
-    },
-  ];
-
-  // Mock recipes for collections
-  const mockCollectionRecipes: Recipe[] = [
-    {
-      id: '1',
-      title: 'Mediterranean Quinoa Bowl',
-      description: 'A colorful, nutrient-packed bowl with quinoa, roasted vegetables, and tahini dressing.',
-      image_url: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=600',
-      cook_time: 25,
-      servings: 2,
-      difficulty: 'Easy',
-      rating: 4.8,
-      reviews_count: 127,
-      author_id: 'user1',
-      author: {
-        id: 'user1',
-        name: 'Sarah Johnson',
-        username: 'sarahcooks',
-        avatar_url: 'https://images.pexels.com/photos/3763188/pexels-photo-3763188.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-      },
-      ingredients: ['1 cup quinoa', '2 cups vegetable broth'],
-      instructions: ['Cook quinoa', 'Add vegetables'],
-      tags: ['Healthy', 'Quick'],
-      dietary_info: ['Vegetarian', 'Vegan'],
-      is_public: true,
-      created_at: '2024-01-15',
-      updated_at: '2024-01-15',
-      isBookmarked: true,
-      isLiked: false,
-    },
-    {
-      id: '2',
-      title: 'Classic Margherita Pizza',
-      description: 'Authentic Italian pizza with fresh mozzarella, basil, and San Marzano tomatoes.',
-      image_url: 'https://images.pexels.com/photos/315755/pexels-photo-315755.jpeg?auto=compress&cs=tinysrgb&w=600',
-      cook_time: 45,
-      servings: 4,
-      difficulty: 'Medium',
-      rating: 4.9,
-      reviews_count: 203,
-      author_id: 'user2',
-      author: {
-        id: 'user2',
-        name: 'Marco Rodriguez',
-        username: 'marcoeats',
-        avatar_url: 'https://images.pexels.com/photos/3778603/pexels-photo-3778603.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-      },
-      ingredients: ['400g pizza dough', '200g tomatoes'],
-      instructions: ['Roll dough', 'Add toppings'],
-      tags: ['Italian', 'Classic'],
-      dietary_info: ['Vegetarian'],
-      is_public: true,
-      created_at: '2024-01-14',
-      updated_at: '2024-01-14',
-      isBookmarked: true,
-      isLiked: true,
-    },
-  ];
-
   useEffect(() => {
     if (id) {
       loadCollection();
@@ -119,12 +44,60 @@ export default function CollectionDetailScreen() {
     try {
       setLoading(true);
       
-      // Find the collection
-      const foundCollection = mockCollections.find(c => c.id === id);
-      if (foundCollection) {
-        setCollection(foundCollection);
-        setCollectionRecipes(mockCollectionRecipes);
+      // Load collection details
+      const collectionDoc = await getDoc(doc(db, 'collections', id));
+      if (!collectionDoc.exists()) {
+        router.back();
+        return;
       }
+      
+      const collectionData = { id: collectionDoc.id, ...collectionDoc.data() } as Collection;
+      setCollection(collectionData);
+      
+      // Load recipes in this collection
+      const collectionRecipesQuery = query(
+        collection(db, 'collection_recipes'),
+        where('collection_id', '==', id),
+        orderBy('added_at', 'desc')
+      );
+      
+      const collectionRecipesSnapshot = await getDocs(collectionRecipesQuery);
+      const recipeIds = collectionRecipesSnapshot.docs.map(doc => doc.data().recipe_id);
+      
+      if (recipeIds.length === 0) {
+        setCollectionRecipes([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Fetch actual recipe data
+      const recipes: Recipe[] = [];
+      for (const recipeId of recipeIds) {
+        try {
+          const recipeDoc = await getDoc(doc(db, 'recipes', recipeId));
+          if (recipeDoc.exists()) {
+            const recipeData = { id: recipeDoc.id, ...recipeDoc.data() } as Recipe;
+            
+            // Fetch author profile
+            const authorDoc = await getDoc(doc(db, 'profiles', recipeData.author_id));
+            if (authorDoc.exists()) {
+              const authorData = authorDoc.data();
+              recipeData.author = {
+                id: authorData.id,
+                name: authorData.name,
+                username: authorData.username,
+                avatar_url: authorData.avatar_url,
+              };
+            }
+            
+            recipes.push(recipeData);
+          }
+        } catch (error) {
+          console.error('Error fetching recipe:', recipeId, error);
+        }
+      }
+      
+      setCollectionRecipes(recipes);
     } catch (error) {
       console.error('Error loading collection:', error);
     } finally {
@@ -133,11 +106,7 @@ export default function CollectionDetailScreen() {
   };
 
   const handleBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.push('/collections');
-    }
+    router.back();
   };
 
   const onRefresh = async () => {
@@ -151,7 +120,6 @@ export default function CollectionDetailScreen() {
   };
 
   const handleAddRecipes = () => {
-    // Navigate to a screen where users can add recipes to this collection
     router.push(`/collections/${id}/add`);
   };
 
@@ -205,7 +173,7 @@ export default function CollectionDetailScreen() {
             <Text style={styles.collectionDescription}>{collection.description}</Text>
           ) : null}
           <Text style={styles.collectionCount}>
-            {collection.recipe_count} recipe{collection.recipe_count !== 1 ? 's' : ''}
+            {collectionRecipes.length} recipe{collectionRecipes.length !== 1 ? 's' : ''}
           </Text>
         </View>
 

@@ -1,11 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { ArrowLeft, Plus, Folder, Heart, Clock, ChefHat, X } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  orderBy
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface Collection {
   id: string;
+  user_id: string;
   name: string;
   description: string;
   recipe_count: number;
@@ -14,33 +27,8 @@ interface Collection {
 }
 
 export default function CollectionsScreen() {
-  const [collections, setCollections] = useState<Collection[]>([
-    {
-      id: '1',
-      name: 'Favorites',
-      description: 'My all-time favorite recipes',
-      recipe_count: 12,
-      created_at: '2024-01-01',
-      is_default: true,
-    },
-    {
-      id: '2',
-      name: 'To Try Next Week',
-      description: 'Recipes I want to cook soon',
-      recipe_count: 8,
-      created_at: '2024-01-15',
-      is_default: false,
-    },
-    {
-      id: '3',
-      name: 'Festive Dishes',
-      description: 'Special occasion recipes',
-      recipe_count: 15,
-      created_at: '2024-01-10',
-      is_default: false,
-    },
-  ]);
-  
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newCollectionDescription, setNewCollectionDescription] = useState('');
@@ -48,12 +36,52 @@ export default function CollectionsScreen() {
 
   const { user } = useAuth();
 
-  const handleBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.push('/(tabs)/profile');
+  useEffect(() => {
+    if (user) {
+      loadCollections();
     }
+  }, [user]);
+
+  const loadCollections = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      
+      const collectionsQuery = query(
+        collection(db, 'collections'),
+        where('user_id', '==', user.uid),
+        orderBy('created_at', 'desc')
+      );
+      
+      const collectionsSnapshot = await getDocs(collectionsQuery);
+      const collectionsData = await Promise.all(
+        collectionsSnapshot.docs.map(async (collectionDoc) => {
+          const collectionData = { id: collectionDoc.id, ...collectionDoc.data() };
+          
+          // Count recipes in this collection
+          const recipesQuery = query(
+            collection(db, 'collection_recipes'),
+            where('collection_id', '==', collectionDoc.id)
+          );
+          const recipesSnapshot = await getDocs(recipesQuery);
+          collectionData.recipe_count = recipesSnapshot.docs.length;
+          
+          return collectionData as Collection;
+        })
+      );
+      
+      setCollections(collectionsData);
+    } catch (error) {
+      console.error('Error loading collections:', error);
+      setCollections([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    router.back();
   };
 
   const handleCreateCollection = async () => {
@@ -62,17 +90,28 @@ export default function CollectionsScreen() {
       return;
     }
 
+    if (!user) {
+      Alert.alert('Error', 'Please log in to create collections');
+      return;
+    }
+
     setCreating(true);
 
     try {
-      // In a real app, this would be an API call
-      const newCollection: Collection = {
-        id: Date.now().toString(),
+      const collectionData = {
+        user_id: user.uid,
         name: newCollectionName.trim(),
         description: newCollectionDescription.trim(),
-        recipe_count: 0,
-        created_at: new Date().toISOString(),
         is_default: false,
+        created_at: new Date().toISOString(),
+      };
+
+      const docRef = await addDoc(collection(db, 'collections'), collectionData);
+      
+      const newCollection: Collection = {
+        id: docRef.id,
+        ...collectionData,
+        recipe_count: 0,
       };
 
       setCollections(prev => [newCollection, ...prev]);
@@ -82,6 +121,7 @@ export default function CollectionsScreen() {
       
       Alert.alert('Success', 'Collection created successfully!');
     } catch (error) {
+      console.error('Error creating collection:', error);
       Alert.alert('Error', 'Failed to create collection. Please try again.');
     } finally {
       setCreating(false);
@@ -89,9 +129,9 @@ export default function CollectionsScreen() {
   };
 
   const handleDeleteCollection = (collectionId: string) => {
-    const collection = collections.find(c => c.id === collectionId);
+    const collectionToDelete = collections.find(c => c.id === collectionId);
     
-    if (collection?.is_default) {
+    if (collectionToDelete?.is_default) {
       Alert.alert('Cannot Delete', 'Default collections cannot be deleted');
       return;
     }
@@ -104,8 +144,15 @@ export default function CollectionsScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setCollections(prev => prev.filter(c => c.id !== collectionId));
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'collections', collectionId));
+              setCollections(prev => prev.filter(c => c.id !== collectionId));
+              Alert.alert('Success', 'Collection deleted successfully');
+            } catch (error) {
+              console.error('Error deleting collection:', error);
+              Alert.alert('Error', 'Failed to delete collection');
+            }
           }
         }
       ]
@@ -122,6 +169,16 @@ export default function CollectionsScreen() {
     if (name.toLowerCase().includes('festive') || name.toLowerCase().includes('special')) return ChefHat;
     return Folder;
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading collections...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -193,58 +250,57 @@ export default function CollectionsScreen() {
         )}
 
         {/* Collections List */}
-        <View style={styles.collectionsSection}>
-          <Text style={styles.sectionTitle}>
-            {collections.length} Collection{collections.length !== 1 ? 's' : ''}
-          </Text>
-          
-          {collections.map((collection) => {
-            const IconComponent = getCollectionIcon(collection.name);
+        {collections.length > 0 ? (
+          <View style={styles.collectionsSection}>
+            <Text style={styles.sectionTitle}>
+              {collections.length} Collection{collections.length !== 1 ? 's' : ''}
+            </Text>
             
-            return (
-              <TouchableOpacity
-                key={collection.id}
-                style={styles.collectionItem}
-                onPress={() => handleCollectionPress(collection.id)}
-              >
-                <View style={styles.collectionIcon}>
-                  <IconComponent size={24} color="#FF6B35" />
-                </View>
-                
-                <View style={styles.collectionInfo}>
-                  <View style={styles.collectionHeader}>
-                    <Text style={styles.collectionName}>{collection.name}</Text>
-                    {collection.is_default && (
-                      <View style={styles.defaultBadge}>
-                        <Text style={styles.defaultBadgeText}>Default</Text>
-                      </View>
-                    )}
+            {collections.map((collection) => {
+              const IconComponent = getCollectionIcon(collection.name);
+              
+              return (
+                <TouchableOpacity
+                  key={collection.id}
+                  style={styles.collectionItem}
+                  onPress={() => handleCollectionPress(collection.id)}
+                >
+                  <View style={styles.collectionIcon}>
+                    <IconComponent size={24} color="#FF6B35" />
                   </View>
                   
-                  {collection.description ? (
-                    <Text style={styles.collectionDescription}>{collection.description}</Text>
-                  ) : null}
-                  
-                  <Text style={styles.collectionCount}>
-                    {collection.recipe_count} recipe{collection.recipe_count !== 1 ? 's' : ''}
-                  </Text>
-                </View>
+                  <View style={styles.collectionInfo}>
+                    <View style={styles.collectionHeader}>
+                      <Text style={styles.collectionName}>{collection.name}</Text>
+                      {collection.is_default && (
+                        <View style={styles.defaultBadge}>
+                          <Text style={styles.defaultBadgeText}>Default</Text>
+                        </View>
+                      )}
+                    </View>
+                    
+                    {collection.description ? (
+                      <Text style={styles.collectionDescription}>{collection.description}</Text>
+                    ) : null}
+                    
+                    <Text style={styles.collectionCount}>
+                      {collection.recipe_count} recipe{collection.recipe_count !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
 
-                {!collection.is_default && (
-                  <TouchableOpacity 
-                    style={styles.deleteButton}
-                    onPress={() => handleDeleteCollection(collection.id)}
-                  >
-                    <X size={16} color="#EF4444" />
-                  </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Empty State */}
-        {collections.length === 0 && (
+                  {!collection.is_default && (
+                    <TouchableOpacity 
+                      style={styles.deleteButton}
+                      onPress={() => handleDeleteCollection(collection.id)}
+                    >
+                      <X size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
           <View style={styles.emptyState}>
             <Folder size={48} color="#94A3B8" />
             <Text style={styles.emptyTitle}>No Collections Yet</Text>
@@ -272,6 +328,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    color: '#64748B',
   },
   header: {
     flexDirection: 'row',

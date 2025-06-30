@@ -25,9 +25,12 @@ export default function SettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('🚪 Settings: Starting sign out process');
               await signOut();
+              console.log('✅ Settings: Sign out successful, navigating to login');
               router.replace('/(auth)/login');
             } catch (error) {
+              console.error('❌ Settings: Sign out error:', error);
               Alert.alert('Error', 'Failed to sign out. Please try again.');
             }
           }

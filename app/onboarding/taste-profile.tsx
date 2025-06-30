@@ -116,7 +116,7 @@ export default function TasteProfileScreen() {
           [
             {
               text: 'Continue',
-              onPress: () => router.replace('/(tabs)')
+              onPress: () => router.back()
             }
           ]
         );
@@ -278,7 +278,7 @@ export default function TasteProfileScreen() {
           
           <TouchableOpacity 
             style={styles.skipButton}
-            onPress={() => router.replace('/(tabs)')}
+            onPress={() => router.back()}
           >
             <Text style={styles.skipButtonText}>Skip for now</Text>
           </TouchableOpacity>

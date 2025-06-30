@@ -2,11 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Alert, Image } from 'react-native';
 import { ArrowLeft, Star, Send, ThumbsUp, MessageCircle } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  query, 
+  where, 
+  orderBy,
+  getDoc
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useRecipes, Recipe } from '@/hooks/useRecipes';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface Review {
   id: string;
+  user_id: string;
+  recipe_id: string;
   user: {
     id: string;
     name: string;
@@ -32,54 +46,10 @@ export default function ReviewsScreen() {
   const { getRecipeById } = useRecipes();
   const { user, profile } = useAuth();
 
-  // Mock reviews data
-  const mockReviews: Review[] = [
-    {
-      id: '1',
-      user: {
-        id: '1',
-        name: 'Sarah Johnson',
-        avatar_url: 'https://images.pexels.com/photos/3763188/pexels-photo-3763188.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-      },
-      rating: 5,
-      comment: 'Absolutely delicious! This recipe is now a family favorite. The instructions were clear and easy to follow.',
-      created_at: '2024-01-15T10:30:00Z',
-      helpful_count: 12,
-      is_helpful: false
-    },
-    {
-      id: '2',
-      user: {
-        id: '2',
-        name: 'Marco Rodriguez',
-        avatar_url: 'https://images.pexels.com/photos/3778603/pexels-photo-3778603.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-      },
-      rating: 4,
-      comment: 'Great recipe! I made a few modifications to suit my taste, but the base recipe is excellent.',
-      created_at: '2024-01-14T15:45:00Z',
-      helpful_count: 8,
-      is_helpful: true
-    },
-    {
-      id: '3',
-      user: {
-        id: '3',
-        name: 'Emily Chen',
-        avatar_url: 'https://images.pexels.com/photos/3866555/pexels-photo-3866555.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-      },
-      rating: 5,
-      comment: 'Perfect for meal prep! I made a double batch and it lasted the whole week. Highly recommend!',
-      created_at: '2024-01-13T09:20:00Z',
-      helpful_count: 15,
-      is_helpful: false
-    }
-  ];
-
   useEffect(() => {
     if (id) {
       loadRecipe();
-      setReviews(mockReviews);
-      setLoading(false);
+      loadReviews();
     }
   }, [id]);
 
@@ -93,12 +63,66 @@ export default function ReviewsScreen() {
     }
   };
 
-  const handleBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.push(`/recipe/${id}`);
+  const loadReviews = async () => {
+    try {
+      setLoading(true);
+      
+      const reviewsQuery = query(
+        collection(db, 'recipe_reviews'),
+        where('recipe_id', '==', id),
+        orderBy('created_at', 'desc')
+      );
+      
+      const reviewsSnapshot = await getDocs(reviewsQuery);
+      const reviewsData = await Promise.all(
+        reviewsSnapshot.docs.map(async (reviewDoc) => {
+          const reviewData = { id: reviewDoc.id, ...reviewDoc.data() };
+          
+          // Fetch user profile for each review
+          try {
+            const userDoc = await getDoc(doc(db, 'profiles', reviewData.user_id));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              reviewData.user = {
+                id: userData.id,
+                name: userData.name,
+                avatar_url: userData.avatar_url,
+              };
+            }
+          } catch (error) {
+            console.error('Error fetching review user:', error);
+          }
+          
+          // Check if current user found this review helpful
+          if (user) {
+            try {
+              const helpfulQuery = query(
+                collection(db, 'review_helpful'),
+                where('user_id', '==', user.uid),
+                where('review_id', '==', reviewData.id)
+              );
+              const helpfulSnapshot = await getDocs(helpfulQuery);
+              reviewData.is_helpful = !helpfulSnapshot.empty;
+            } catch (error) {
+              console.error('Error checking helpful status:', error);
+            }
+          }
+          
+          return reviewData as Review;
+        })
+      );
+      
+      setReviews(reviewsData);
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+      setReviews([]);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleBack = () => {
+    router.back();
   };
 
   const submitReview = async () => {
@@ -120,9 +144,42 @@ export default function ReviewsScreen() {
     setSubmitting(true);
 
     try {
-      // In a real app, this would be an API call
+      // Add review to database
+      const reviewData = {
+        user_id: user.uid,
+        recipe_id: id,
+        rating: newRating,
+        comment: newComment.trim(),
+        helpful_count: 0,
+        created_at: new Date().toISOString(),
+      };
+
+      const docRef = await addDoc(collection(db, 'recipe_reviews'), reviewData);
+      
+      // Update recipe's average rating and review count
+      const recipeRef = doc(db, 'recipes', id);
+      const recipeDoc = await getDoc(recipeRef);
+      
+      if (recipeDoc.exists()) {
+        const currentData = recipeDoc.data();
+        const currentRating = currentData.rating || 0;
+        const currentCount = currentData.reviews_count || 0;
+        
+        const newCount = currentCount + 1;
+        const newAvgRating = ((currentRating * currentCount) + newRating) / newCount;
+        
+        await updateDoc(recipeRef, {
+          rating: Math.round(newAvgRating * 10) / 10, // Round to 1 decimal
+          reviews_count: newCount,
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      // Add new review to local state
       const newReview: Review = {
-        id: Date.now().toString(),
+        id: docRef.id,
+        user_id: user.uid,
+        recipe_id: id,
         user: {
           id: user.uid,
           name: profile.name,
@@ -142,26 +199,58 @@ export default function ReviewsScreen() {
       
       Alert.alert('Success', 'Your review has been submitted!');
     } catch (error) {
+      console.error('Error submitting review:', error);
       Alert.alert('Error', 'Failed to submit review. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const toggleHelpful = (reviewId: string) => {
-    setReviews(prev => 
-      prev.map(review => 
-        review.id === reviewId 
-          ? { 
-              ...review, 
-              is_helpful: !review.is_helpful,
-              helpful_count: review.is_helpful 
-                ? review.helpful_count - 1 
-                : review.helpful_count + 1
-            }
-          : review
-      )
-    );
+  const toggleHelpful = async (reviewId: string) => {
+    if (!user) return;
+
+    try {
+      const helpfulQuery = query(
+        collection(db, 'review_helpful'),
+        where('user_id', '==', user.uid),
+        where('review_id', '==', reviewId)
+      );
+      
+      const helpfulSnapshot = await getDocs(helpfulQuery);
+      const isCurrentlyHelpful = !helpfulSnapshot.empty;
+      
+      if (isCurrentlyHelpful) {
+        // Remove helpful
+        const helpfulDoc = helpfulSnapshot.docs[0];
+        await updateDoc(doc(db, 'review_helpful', helpfulDoc.id), {
+          deleted: true
+        });
+      } else {
+        // Add helpful
+        await addDoc(collection(db, 'review_helpful'), {
+          user_id: user.uid,
+          review_id: reviewId,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      // Update local state
+      setReviews(prev => 
+        prev.map(review => 
+          review.id === reviewId 
+            ? { 
+                ...review, 
+                is_helpful: !review.is_helpful,
+                helpful_count: review.is_helpful 
+                  ? review.helpful_count - 1 
+                  : review.helpful_count + 1
+              }
+            : review
+        )
+      );
+    } catch (error) {
+      console.error('Error toggling helpful:', error);
+    }
   };
 
   const renderStars = (rating: number, size: number = 16, interactive: boolean = false) => {
@@ -313,12 +402,12 @@ export default function ReviewsScreen() {
               <View style={styles.reviewHeader}>
                 <Image 
                   source={{ 
-                    uri: review.user.avatar_url || 'https://images.pexels.com/photos/3778876/pexels-photo-3778876.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop' 
+                    uri: review.user?.avatar_url || 'https://images.pexels.com/photos/3778876/pexels-photo-3778876.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop' 
                   }} 
                   style={styles.reviewerAvatar} 
                 />
                 <View style={styles.reviewerInfo}>
-                  <Text style={styles.reviewerName}>{review.user.name}</Text>
+                  <Text style={styles.reviewerName}>{review.user?.name || 'Anonymous'}</Text>
                   <View style={styles.reviewMeta}>
                     {renderStars(review.rating, 14)}
                     <Text style={styles.reviewDate}>{formatDate(review.created_at)}</Text>
