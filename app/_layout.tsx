@@ -3,7 +3,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { SplashScreen } from 'expo-router';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 
 // Keep the splash screen visible while we check auth status
 SplashScreen.preventAutoHideAsync();
@@ -55,6 +56,7 @@ const InitialLayout = () => {
 };
 
 export default function RootLayout() {
+  useFrameworkReady();
   // Font loading remains the same
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': require('../assets/fonts/Inter_18pt-Regular.ttf'),
