@@ -6,7 +6,7 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 interface UserProfile {
@@ -20,6 +20,8 @@ interface UserProfile {
   following_count: number;
   recipes_count: number;
   dietary_preferences: string[];
+  favorite_cuisines: string[];
+  allergies: string[];
   skill_level: 'Beginner' | 'Intermediate' | 'Advanced';
   created_at: string;
   updated_at: string;
@@ -44,6 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('🔐 Auth state changed:', user?.uid);
       setUser(user);
       
       if (user) {
@@ -60,9 +63,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log('👤 Fetching profile for user:', userId);
       const profileDoc = await getDoc(doc(db, 'profiles', userId));
       if (profileDoc.exists()) {
-        setProfile(profileDoc.data() as UserProfile);
+        const profileData = profileDoc.data() as UserProfile;
+        console.log('✅ Profile loaded:', profileData.name);
+        setProfile(profileData);
+      } else {
+        console.log('❌ No profile found for user:', userId);
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -71,15 +79,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      console.log('🔑 Signing in user:', email);
       await signInWithEmailAndPassword(auth, email, password);
       return { error: null };
     } catch (error) {
+      console.error('❌ Sign in error:', error);
       return { error };
     }
   };
 
   const signUp = async (email: string, password: string, name: string, username: string) => {
     try {
+      console.log('📝 Creating new user:', email);
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
@@ -94,25 +105,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         following_count: 0,
         recipes_count: 0,
         dietary_preferences: [],
+        favorite_cuisines: [],
+        allergies: [],
         skill_level: 'Beginner',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
       await setDoc(doc(db, 'profiles', user.uid), profileData);
+      console.log('✅ Profile created for:', name);
       setProfile(profileData);
 
       return { error: null };
     } catch (error) {
+      console.error('❌ Sign up error:', error);
       return { error };
     }
   };
 
   const signOut = async () => {
     try {
+      console.log('🚪 Signing out user');
       await firebaseSignOut(auth);
+      setProfile(null);
+      console.log('✅ User signed out successfully');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('❌ Sign out error:', error);
     }
   };
 
@@ -120,11 +138,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user || !profile) return { error: new Error('No user logged in') };
 
     try {
+      console.log('📝 Updating profile:', updates);
       const updatedProfile = { ...profile, ...updates, updated_at: new Date().toISOString() };
-      await setDoc(doc(db, 'profiles', user.uid), updatedProfile);
+      await updateDoc(doc(db, 'profiles', user.uid), updatedProfile);
       setProfile(updatedProfile);
+      console.log('✅ Profile updated successfully');
       return { error: null };
     } catch (error) {
+      console.error('❌ Profile update error:', error);
       return { error };
     }
   };

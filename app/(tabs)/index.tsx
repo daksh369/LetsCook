@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, RefreshControl } from 'react-native';
 import { Bell, Settings } from 'lucide-react-native';
 import { router } from 'expo-router';
 import RecipeCard from '@/components/RecipeCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRecipes } from '@/hooks/useRecipes';
+import { useNotifications } from '@/hooks/useNotifications';
 
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('feed');
   const { profile } = useAuth();
   const { recipes, loading, fetchRecipes, toggleBookmark, toggleLike } = useRecipes();
+  const { unreadCount } = useNotifications();
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -48,6 +50,13 @@ export default function HomeScreen() {
 
   const filteredRecipes = getFilteredRecipes();
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   if (!profile) {
     return (
       <SafeAreaView style={styles.container}>
@@ -62,12 +71,19 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Good morning,</Text>
+          <Text style={styles.greeting}>{getGreeting()},</Text>
           <Text style={styles.userName}>{profile.name}!</Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.iconButton} onPress={handleNotifications}>
             <Bell size={24} color="#64748B" />
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={handleSettings}>
             <Settings size={24} color="#64748B" />
@@ -196,6 +212,23 @@ const styles = StyleSheet.create({
   iconButton: {
     padding: 8,
     marginLeft: 8,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#FF6B35',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBadgeText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Bold',
+    color: '#FFFFFF',
   },
   tabContainer: {
     flexDirection: 'row',

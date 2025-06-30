@@ -6,6 +6,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Recipe, useRecipes } from '@/hooks/useRecipes';
+import { useNotifications } from '@/hooks/useNotifications';
 import * as Sharing from 'expo-sharing';
 
 export default function RecipeDetailScreen() {
@@ -16,9 +17,9 @@ export default function RecipeDetailScreen() {
   const [ingredientsMode, setIngredientsMode] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState<boolean[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
-  const [showCookedForm, setShowCookedForm] = useState(false);
   const { user } = useAuth();
   const { toggleLike, toggleBookmark } = useRecipes();
+  const { createNotification } = useNotifications();
 
   useEffect(() => {
     if (id) {
@@ -69,10 +70,22 @@ export default function RecipeDetailScreen() {
     if (!recipe || !user) return;
     
     // Optimistically update UI
+    const wasLiked = recipe.isLiked;
     setRecipe(prev => prev ? { ...prev, isLiked: !prev.isLiked } : null);
     
     // Update in database
     await toggleLike(recipe.id);
+    
+    // Create notification if liked (not unliked)
+    if (!wasLiked && recipe.author_id !== user.uid) {
+      await createNotification(
+        recipe.author_id,
+        'like',
+        'Someone liked your recipe!',
+        `${user.displayName || 'Someone'} liked your recipe "${recipe.title}"`,
+        { recipe_id: recipe.id }
+      );
+    }
   };
 
   const handleBookmark = async () => {
@@ -115,7 +128,13 @@ export default function RecipeDetailScreen() {
       Alert.alert('Sign In Required', 'Please sign in to share your cooking experience');
       return;
     }
-    setShowCookedForm(true);
+    router.push(`/cooked/${recipe.id}`);
+  };
+
+  const handleAuthorPress = () => {
+    if (recipe?.author_id && recipe.author_id !== user?.uid) {
+      router.push(`/user/${recipe.author_id}`);
+    }
   };
 
   const toggleIngredient = (index: number) => {
@@ -406,7 +425,7 @@ export default function RecipeDetailScreen() {
           <Text style={styles.recipeDescription}>{recipe.description}</Text>
           
           {recipe.author && (
-            <View style={styles.authorInfo}>
+            <TouchableOpacity style={styles.authorInfo} onPress={handleAuthorPress}>
               <Image 
                 source={{ 
                   uri: recipe.author.avatar_url || 'https://images.pexels.com/photos/3778876/pexels-photo-3778876.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop' 
@@ -417,7 +436,7 @@ export default function RecipeDetailScreen() {
                 <Text style={styles.authorName}>by {recipe.author.name}</Text>
                 <Text style={styles.authorUsername}>@{recipe.author.username}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
           
           <View style={styles.metadata}>
@@ -522,22 +541,6 @@ export default function RecipeDetailScreen() {
         {/* Bottom padding to account for tab bar */}
         <View style={styles.bottomPadding} />
       </ScrollView>
-
-      {/* Cooked This Modal would go here */}
-      {showCookedForm && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Share Your Creation!</Text>
-            <Text style={styles.modalSubtitle}>Upload a photo and tell us how it turned out</Text>
-            <TouchableOpacity 
-              style={styles.modalCloseButton}
-              onPress={() => setShowCookedForm(false)}
-            >
-              <Text style={styles.modalCloseText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -1150,48 +1153,5 @@ const styles = StyleSheet.create({
   },
   navButtonTextDisabled: {
     color: '#94A3B8',
-  },
-
-  // Modal Styles
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    marginHorizontal: 32,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter-Bold',
-    color: '#1E293B',
-    marginBottom: 8,
-  },
-  modalSubtitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  modalCloseButton: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-  },
-  modalCloseText: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
   },
 });

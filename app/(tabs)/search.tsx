@@ -6,47 +6,11 @@ import SearchBar from '@/components/SearchBar';
 import RecipeCard from '@/components/RecipeCard';
 import UserCard from '@/components/UserCard';
 import { useRecipes } from '@/hooks/useRecipes';
+import { useUsers } from '@/hooks/useUsers';
 
 const dietaryFilters = ['All', 'Vegetarian', 'Vegan', 'Gluten-free', 'Keto', 'Low-carb'];
 const difficultyFilters = ['All', 'Easy', 'Medium', 'Hard'];
 const timeFilters = ['All', 'Under 15min', '15-30min', '30-60min', 'Over 60min'];
-
-// Mock users data for discovery
-const mockUsers = [
-  {
-    id: '1',
-    name: 'Sarah Johnson',
-    username: 'sarahcooks',
-    avatar: 'https://images.pexels.com/photos/3763188/pexels-photo-3763188.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-    bio: 'Home chef passionate about healthy, delicious meals 🥗',
-    followers: 1234,
-    following: 456,
-    recipes: 89,
-    isFollowing: false,
-  },
-  {
-    id: '2',
-    name: 'Marco Rodriguez',
-    username: 'marcoeats',
-    avatar: 'https://images.pexels.com/photos/3778603/pexels-photo-3778603.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-    bio: 'Italian cuisine enthusiast | Food photographer 📸',
-    followers: 2567,
-    following: 234,
-    recipes: 156,
-    isFollowing: true,
-  },
-  {
-    id: '3',
-    name: 'Emily Chen',
-    username: 'emilyskitchen',
-    avatar: 'https://images.pexels.com/photos/3866555/pexels-photo-3866555.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-    bio: 'Quick & easy recipes for busy professionals ⏰',
-    followers: 3456,
-    following: 678,
-    recipes: 234,
-    isFollowing: false,
-  },
-];
 
 export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -56,14 +20,25 @@ export default function SearchScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState<'recipes' | 'chefs'>('recipes');
   const [refreshing, setRefreshing] = useState(false);
-  const [users, setUsers] = useState(mockUsers);
 
-  const { recipes, loading, fetchRecipes, toggleBookmark, toggleLike } = useRecipes();
+  const { recipes, loading: recipesLoading, fetchRecipes, toggleBookmark, toggleLike } = useRecipes();
+  const { users, loading: usersLoading, fetchUsers, toggleFollow } = useUsers();
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchRecipes();
+    if (activeTab === 'recipes') {
+      await fetchRecipes();
+    } else {
+      await fetchUsers(searchQuery);
+    }
     setRefreshing(false);
+  };
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (activeTab === 'chefs') {
+      await fetchUsers(query);
+    }
   };
 
   const filteredRecipes = recipes.filter(recipe => {
@@ -88,7 +63,7 @@ export default function SearchScreen() {
   const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.bio.toLowerCase().includes(searchQuery.toLowerCase())
+    (user.bio && user.bio.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const handleRecipePress = (recipeId: string) => {
@@ -96,22 +71,7 @@ export default function SearchScreen() {
   };
 
   const handleUserPress = (userId: string) => {
-    // Navigate to user profile
-    console.log('Navigate to user profile:', userId);
-  };
-
-  const handleFollow = (userId: string) => {
-    setUsers(prev => 
-      prev.map(user => 
-        user.id === userId 
-          ? { 
-              ...user, 
-              isFollowing: !user.isFollowing,
-              followers: user.isFollowing ? user.followers - 1 : user.followers + 1
-            }
-          : user
-      )
-    );
+    router.push(`/user/${userId}`);
   };
 
   const clearFilters = () => {
@@ -136,7 +96,7 @@ export default function SearchScreen() {
 
       <SearchBar
         value={searchQuery}
-        onChangeText={setSearchQuery}
+        onChangeText={handleSearch}
         placeholder="Search recipes, chefs, ingredients..."
       />
 
@@ -278,7 +238,7 @@ export default function SearchScreen() {
         {activeTab === 'recipes' ? (
           // Recipes Results
           <>
-            {loading ? (
+            {recipesLoading ? (
               <View style={styles.loadingContainer}>
                 <Text style={styles.loadingText}>Loading recipes...</Text>
               </View>
@@ -311,13 +271,17 @@ export default function SearchScreen() {
         ) : (
           // Chefs Results
           <>
-            {filteredUsers.length > 0 ? (
+            {usersLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading chefs...</Text>
+              </View>
+            ) : filteredUsers.length > 0 ? (
               filteredUsers.map((user) => (
                 <UserCard
                   key={user.id}
                   user={user}
                   onPress={() => handleUserPress(user.id)}
-                  onFollow={() => handleFollow(user.id)}
+                  onFollow={() => toggleFollow(user.id)}
                 />
               ))
             ) : (

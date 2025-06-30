@@ -1,86 +1,41 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, RefreshControl, Image } from 'react-native';
 import { ArrowLeft, Bell, Heart, Users, MessageCircle, Star, Settings } from 'lucide-react-native';
 import { router } from 'expo-router';
-
-interface Notification {
-  id: string;
-  type: 'like' | 'follow' | 'comment' | 'review' | 'system';
-  title: string;
-  message: string;
-  time: string;
-  read: boolean;
-  avatar?: string;
-}
+import { useNotifications } from '@/hooks/useNotifications';
 
 export default function NotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'like',
-      title: 'Sarah Johnson liked your recipe',
-      message: 'Mediterranean Quinoa Bowl',
-      time: '2 hours ago',
-      read: false,
-      avatar: 'https://images.pexels.com/photos/3763188/pexels-photo-3763188.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-    },
-    {
-      id: '2',
-      type: 'follow',
-      title: 'Marco Rodriguez started following you',
-      message: 'Check out their Italian recipes',
-      time: '4 hours ago',
-      read: false,
-      avatar: 'https://images.pexels.com/photos/3778603/pexels-photo-3778603.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-    },
-    {
-      id: '3',
-      type: 'comment',
-      title: 'Emily Chen commented on your recipe',
-      message: '"This looks amazing! Can\'t wait to try it."',
-      time: '1 day ago',
-      read: true,
-      avatar: 'https://images.pexels.com/photos/3866555/pexels-photo-3866555.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-    },
-    {
-      id: '4',
-      type: 'review',
-      title: 'New 5-star review',
-      message: 'Someone rated your Classic Margherita Pizza',
-      time: '2 days ago',
-      read: true,
-    },
-    {
-      id: '5',
-      type: 'system',
-      title: 'Recipe of the Week',
-      message: 'Your Mediterranean Quinoa Bowl was featured!',
-      time: '3 days ago',
-      read: true,
-    }
-  ]);
+  const { 
+    notifications, 
+    loading, 
+    unreadCount, 
+    fetchNotifications, 
+    markAsRead, 
+    markAllAsRead 
+  } = useNotifications();
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // Simulate API call
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    await fetchNotifications();
+    setRefreshing(false);
   };
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(notif => 
-        notif.id === id ? { ...notif, read: true } : notif
-      )
-    );
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev => 
-      prev.map(notif => ({ ...notif, read: true }))
-    );
+  const handleNotificationPress = (notification: any) => {
+    if (!notification.read) {
+      markAsRead(notification.id);
+    }
+    
+    // Navigate based on notification type
+    if (notification.type === 'like' || notification.type === 'comment') {
+      if (notification.data?.recipe_id) {
+        router.push(`/recipe/${notification.data.recipe_id}`);
+      }
+    } else if (notification.type === 'follow') {
+      if (notification.data?.user_id) {
+        router.push(`/user/${notification.data.user_id}`);
+      }
+    }
   };
 
   const getNotificationIcon = (type: string) => {
@@ -100,7 +55,16 @@ export default function NotificationsScreen() {
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInHours < 48) return 'Yesterday';
+    return date.toLocaleDateString();
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -137,7 +101,11 @@ export default function NotificationsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
-        {notifications.length > 0 ? (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading notifications...</Text>
+          </View>
+        ) : notifications.length > 0 ? (
           notifications.map((notification) => (
             <TouchableOpacity
               key={notification.id}
@@ -145,7 +113,7 @@ export default function NotificationsScreen() {
                 styles.notificationItem,
                 !notification.read && styles.unreadNotification
               ]}
-              onPress={() => markAsRead(notification.id)}
+              onPress={() => handleNotificationPress(notification)}
             >
               <View style={styles.notificationIcon}>
                 {getNotificationIcon(notification.type)}
@@ -154,8 +122,15 @@ export default function NotificationsScreen() {
               <View style={styles.notificationContent}>
                 <Text style={styles.notificationTitle}>{notification.title}</Text>
                 <Text style={styles.notificationMessage}>{notification.message}</Text>
-                <Text style={styles.notificationTime}>{notification.time}</Text>
+                <Text style={styles.notificationTime}>{formatTime(notification.created_at)}</Text>
               </View>
+              
+              {notification.from_user?.avatar_url && (
+                <Image 
+                  source={{ uri: notification.from_user.avatar_url }} 
+                  style={styles.userAvatar} 
+                />
+              )}
               
               {!notification.read && (
                 <View style={styles.unreadDot} />
@@ -243,6 +218,16 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    color: '#64748B',
+  },
   notificationItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -284,12 +269,19 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: '#94A3B8',
   },
+  userAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginLeft: 8,
+  },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#FF6B35',
     marginTop: 8,
+    marginLeft: 8,
   },
   emptyState: {
     alignItems: 'center',

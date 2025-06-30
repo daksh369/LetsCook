@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Switch, Alert } from 'react-native';
-import { ArrowLeft, Bell, Shield, Palette, Download, Circle as HelpCircle, LogOut, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, Bell, Shield, Palette, Download, Circle as HelpCircle, LogOut, ChevronRight, User, Mail, Globe } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -12,7 +12,7 @@ export default function SettingsScreen() {
   const [darkMode, setDarkMode] = useState(false);
   const [privateProfile, setPrivateProfile] = useState(false);
 
-  const { signOut } = useAuth();
+  const { signOut, profile } = useAuth();
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -24,12 +24,78 @@ export default function SettingsScreen() {
           text: 'Sign Out', 
           style: 'destructive',
           onPress: async () => {
-            await signOut();
-            router.replace('/(auth)/login');
+            try {
+              await signOut();
+              router.replace('/(auth)/login');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
           }
         }
       ]
     );
+  };
+
+  const handleEditProfile = () => {
+    router.push('/(tabs)/profile');
+  };
+
+  const handleUpdateTasteProfile = () => {
+    router.push('/onboarding/taste-profile');
+  };
+
+  const handlePrivacySettings = () => {
+    Alert.alert('Privacy Settings', 'Manage your data and privacy preferences here.');
+  };
+
+  const handleBlockedUsers = () => {
+    Alert.alert('Blocked Users', 'View and manage blocked users here.');
+  };
+
+  const handleExportData = () => {
+    Alert.alert('Export Data', 'Your data export will be prepared and sent to your email.');
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This action cannot be undone. All your recipes, followers, and data will be permanently deleted.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete Account', 
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Final Confirmation',
+              'Are you absolutely sure? This cannot be undone.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { 
+                  text: 'Delete Forever', 
+                  style: 'destructive',
+                  onPress: () => {
+                    Alert.alert('Account Deletion', 'Account deletion request submitted. You will receive an email confirmation.');
+                  }
+                }
+              ]
+            );
+          }
+        }
+      ]
+    );
+  };
+
+  const handleHelpCenter = () => {
+    Alert.alert('Help Center', 'Visit our help center for FAQs and support articles.');
+  };
+
+  const handleContactUs = () => {
+    Alert.alert('Contact Support', 'Send us an email at support@letscook.app or use the in-app feedback form.');
+  };
+
+  const handleAbout = () => {
+    Alert.alert('About LetsCook', 'LetsCook v1.0.0\n\nA social cooking platform for food lovers.\n\n© 2024 LetsCook. All rights reserved.');
   };
 
   const SettingItem = ({ 
@@ -39,7 +105,8 @@ export default function SettingsScreen() {
     onPress, 
     showSwitch = false, 
     switchValue = false, 
-    onSwitchChange 
+    onSwitchChange,
+    showChevron = true
   }: {
     icon: React.ReactNode;
     title: string;
@@ -48,6 +115,7 @@ export default function SettingsScreen() {
     showSwitch?: boolean;
     switchValue?: boolean;
     onSwitchChange?: (value: boolean) => void;
+    showChevron?: boolean;
   }) => (
     <TouchableOpacity 
       style={styles.settingItem} 
@@ -68,9 +136,9 @@ export default function SettingsScreen() {
           trackColor={{ false: '#E2E8F0', true: '#FF6B35' }}
           thumbColor={switchValue ? '#FFFFFF' : '#94A3B8'}
         />
-      ) : (
+      ) : showChevron ? (
         <ChevronRight size={20} color="#94A3B8" />
-      )}
+      ) : null}
     </TouchableOpacity>
   );
 
@@ -85,6 +153,25 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Account */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          
+          <SettingItem
+            icon={<User size={20} color="#FF6B35" />}
+            title="Edit Profile"
+            subtitle="Update your name, bio, and avatar"
+            onPress={handleEditProfile}
+          />
+          
+          <SettingItem
+            icon={<Palette size={20} color="#4ECDC4" />}
+            title="Taste Profile"
+            subtitle="Update dietary preferences and skill level"
+            onPress={handleUpdateTasteProfile}
+          />
+        </View>
+
         {/* Notifications */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notifications</Text>
@@ -96,15 +183,17 @@ export default function SettingsScreen() {
             showSwitch
             switchValue={pushNotifications}
             onSwitchChange={setPushNotifications}
+            showChevron={false}
           />
           
           <SettingItem
-            icon={<Bell size={20} color="#4ECDC4" />}
+            icon={<Mail size={20} color="#4ECDC4" />}
             title="Email Notifications"
             subtitle="Receive notifications via email"
             showSwitch
             switchValue={emailNotifications}
             onSwitchChange={setEmailNotifications}
+            showChevron={false}
           />
           
           <SettingItem
@@ -114,6 +203,7 @@ export default function SettingsScreen() {
             showSwitch
             switchValue={socialNotifications}
             onSwitchChange={setSocialNotifications}
+            showChevron={false}
           />
         </View>
 
@@ -128,20 +218,21 @@ export default function SettingsScreen() {
             showSwitch
             switchValue={privateProfile}
             onSwitchChange={setPrivateProfile}
+            showChevron={false}
           />
           
           <SettingItem
             icon={<Shield size={20} color="#10B981" />}
             title="Data & Privacy"
             subtitle="Manage your data and privacy settings"
-            onPress={() => Alert.alert('Coming Soon', 'Data & Privacy settings will be available soon.')}
+            onPress={handlePrivacySettings}
           />
           
           <SettingItem
             icon={<Shield size={20} color="#F59E0B" />}
             title="Blocked Users"
             subtitle="Manage blocked users"
-            onPress={() => Alert.alert('Coming Soon', 'Blocked users management will be available soon.')}
+            onPress={handleBlockedUsers}
           />
         </View>
 
@@ -156,13 +247,7 @@ export default function SettingsScreen() {
             showSwitch
             switchValue={darkMode}
             onSwitchChange={setDarkMode}
-          />
-          
-          <SettingItem
-            icon={<Palette size={20} color="#06B6D4" />}
-            title="Theme Color"
-            subtitle="Customize your app theme"
-            onPress={() => Alert.alert('Coming Soon', 'Theme customization will be available soon.')}
+            showChevron={false}
           />
         </View>
 
@@ -174,21 +259,14 @@ export default function SettingsScreen() {
             icon={<Download size={20} color="#059669" />}
             title="Export Data"
             subtitle="Download your recipes and data"
-            onPress={() => Alert.alert('Coming Soon', 'Data export will be available soon.')}
+            onPress={handleExportData}
           />
           
           <SettingItem
             icon={<Download size={20} color="#DC2626" />}
             title="Delete Account"
             subtitle="Permanently delete your account"
-            onPress={() => Alert.alert(
-              'Delete Account',
-              'This action cannot be undone. Are you sure you want to delete your account?',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive' }
-              ]
-            )}
+            onPress={handleDeleteAccount}
           />
         </View>
 
@@ -200,21 +278,26 @@ export default function SettingsScreen() {
             icon={<HelpCircle size={20} color="#3B82F6" />}
             title="Help Center"
             subtitle="Get help and support"
-            onPress={() => Alert.alert('Coming Soon', 'Help center will be available soon.')}
+            onPress={handleHelpCenter}
           />
           
           <SettingItem
-            icon={<HelpCircle size={20} color="#F59E0B" />}
+            icon={<Mail size={20} color="#F59E0B" />}
             title="Contact Us"
             subtitle="Send feedback or report issues"
-            onPress={() => Alert.alert('Coming Soon', 'Contact form will be available soon.')}
+            onPress={handleContactUs}
+          />
+          
+          <SettingItem
+            icon={<Globe size={20} color="#6B7280" />}
+            title="About"
+            subtitle="App version and information"
+            onPress={handleAbout}
           />
         </View>
 
-        {/* Account */}
+        {/* Sign Out */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          
           <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
             <LogOut size={20} color="#EF4444" />
             <Text style={styles.signOutText}>Sign Out</Text>

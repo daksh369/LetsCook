@@ -97,7 +97,7 @@ export default function ReviewsScreen() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.push('/(tabs)');
+      router.push(`/recipe/${id}`);
     }
   };
 
