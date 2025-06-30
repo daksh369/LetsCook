@@ -27,8 +27,8 @@ export default function SettingsScreen() {
             try {
               console.log('🚪 Settings: Starting sign out process');
               await signOut();
-              console.log('✅ Settings: Sign out successful, navigating to login');
-              router.replace('/(auth)/login');
+              console.log('✅ Settings: Sign out successful - auth guard will handle navigation');
+              // Remove manual navigation - the auth guard will handle this automatically
             } catch (error) {
               console.error('❌ Settings: Sign out error:', error);
               Alert.alert('Error', 'Failed to sign out. Please try again.');

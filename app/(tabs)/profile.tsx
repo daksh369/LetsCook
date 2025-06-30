@@ -78,19 +78,18 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('🚪 Profile: Starting sign out process');
               await signOut();
-              router.replace('/(auth)/login');
+              console.log('✅ Profile: Sign out successful - auth guard will handle navigation');
+              // Remove manual navigation - the auth guard will handle this automatically
             } catch (error) {
+              console.error('❌ Profile: Sign out error:', error);
               Alert.alert('Error', 'Failed to sign out. Please try again.');
             }
           }
         }
       ]
     );
-  };
-
-  const handleSettings = () => {
-    router.push('/(tabs)/settings');
   };
 
   const handleRecipePress = (recipeId: string) => {
@@ -105,6 +104,10 @@ export default function ProfileScreen() {
       await fetchLikedRecipes();
     }
     setRefreshing(false);
+  };
+
+  const handleSettings = () => {
+    router.push('/(tabs)/settings');
   };
 
   const renderTabContent = () => {
